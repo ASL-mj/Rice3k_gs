@@ -1,0 +1,256 @@
+.container {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 24px;
+}
+
+.reportsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.reportCard {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.reportCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.cardTitle {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin: 0;
+  flex: 1;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #ffffff;
+}
+
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cardInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cardLabel {
+  font-size: 12px;
+  color: #999;
+  font-weight: 500;
+}
+
+.cardValue {
+  font-size: 14px;
+  color: #333;
+}
+
+.fileList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.fileTag {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #666;
+}
+
+.stepsList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stepBadge {
+  font-size: 12px;
+  color: #666;
+  padding: 4px 0;
+}
+
+.cardFooter {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.viewBtn {
+  width: 100%;
+  padding: 10px;
+  background: #1a73e8;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background-color 0.2s;
+}
+
+.viewBtn:hover {
+  background: #1557b0;
+}
+
+.backBtn {
+  padding: 10px 20px;
+  background: #ffffff;
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #666;
+  cursor: pointer;
+  margin-bottom: 24px;
+  transition: all 0.2s;
+}
+
+.backBtn:hover {
+  border-color: #1a73e8;
+  color: #1a73e8;
+}
+
+.detailContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.detailSection {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.detailTitle {
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.infoGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.infoItem {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.infoLabel {
+  font-size: 14px;
+  color: #999;
+  font-weight: 500;
+}
+
+.infoValue {
+  font-size: 16px;
+  color: #333;
+}
+
+.stepsTimeline {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.stepItem {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.stepNumber {
+  width: 32px;
+  height: 32px;
+  background: #1a73e8;
+  color: #ffffff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.stepContent {
+  flex: 1;
+}
+
+.stepName {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.stepDescription {
+  font-size: 14px;
+  color: #666;
+}
+
+.reportContent {
+  font-size: 14px;
+  line-height: 1.8;
+  color: #333;
+}
+
+.reportContent p {
+  margin-bottom: 16px;
+}
+
+.reportContent ul {
+  margin-left: 20px;
+  margin-bottom: 16px;
+}
+
+.reportContent li {
+  margin-bottom: 8px;
+}

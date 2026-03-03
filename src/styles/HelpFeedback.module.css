@@ -1,0 +1,240 @@
+.container {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.title {
+  font-size: 32px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.subtitle {
+  font-size: 16px;
+  color: #666;
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.section {
+  margin-bottom: 48px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.sectionIcon {
+  font-size: 24px;
+  color: #1a73e8;
+}
+
+.sectionTitle {
+  font-size: 24px;
+  font-weight: 600;
+  color: #333;
+  margin: 0;
+}
+
+.sectionDesc {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 24px;
+}
+
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.card {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.cardTitle {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.cardDesc {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 16px;
+}
+
+.cardBtn {
+  background: none;
+  border: none;
+  color: #1a73e8;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.2s;
+}
+
+.cardBtn:hover {
+  color: #1557b0;
+}
+
+.guideList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.guideItem {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 20px 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.guideItem:hover {
+  transform: translateX(4px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.guideContent {
+  flex: 1;
+}
+
+.guideTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.guideDesc {
+  font-size: 14px;
+  color: #666;
+  margin: 0;
+}
+
+.guideBtn {
+  background: none;
+  border: none;
+  color: #1a73e8;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 8px 16px;
+  transition: color 0.2s;
+}
+
+.guideBtn:hover {
+  color: #1557b0;
+}
+
+.faqList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.faqItem {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 20px 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+}
+
+.faqQuestion {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.faqQuestion::-webkit-details-marker {
+  display: none;
+}
+
+.faqQuestion::before {
+  content: '▶';
+  display: inline-block;
+  margin-right: 12px;
+  transition: transform 0.2s;
+  color: #1a73e8;
+}
+
+.faqItem[open] .faqQuestion::before {
+  transform: rotate(90deg);
+}
+
+.faqAnswer {
+  font-size: 14px;
+  color: #666;
+  margin-top: 12px;
+  padding-left: 24px;
+  line-height: 1.6;
+}
+
+.feedbackForm {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.feedbackTextarea {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s;
+  margin-bottom: 16px;
+}
+
+.feedbackTextarea:focus {
+  border-color: #1a73e8;
+}
+
+.submitBtn {
+  padding: 10px 24px;
+  background: #1a73e8;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 0.2s;
+}
+
+.submitBtn:hover {
+  background: #1557b0;
+}

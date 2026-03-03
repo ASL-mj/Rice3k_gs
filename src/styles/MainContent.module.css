@@ -1,0 +1,125 @@
+.mainContent {
+  flex: 1;
+  overflow-y: auto;
+  background-color: #f5f5f5;
+  padding: 24px;
+}
+
+.helpCenter {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.helpHeader {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.helpHeader h2 {
+  font-size: 32px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+}
+
+.helpHeader p {
+  font-size: 16px;
+  color: #666;
+  line-height: 1.6;
+}
+
+.helpSection {
+  background-color: #ffffff;
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 16px;
+  display: flex;
+  gap: 20px;
+}
+
+.sectionIcon {
+  font-size: 32px;
+  min-width: 40px;
+}
+
+.sectionContent {
+  flex: 1;
+}
+
+.sectionContent h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.sectionSubtitle {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 16px;
+}
+
+.sectionItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.sectionItem:last-child {
+  border-bottom: none;
+}
+
+.sectionItem:hover {
+  color: #1a73e8;
+}
+
+.sectionItem span:first-child {
+  font-size: 14px;
+  color: #333;
+}
+
+.sectionItem:hover span:first-child {
+  color: #1a73e8;
+}
+
+.expandIcon {
+  font-size: 20px;
+  color: #999;
+}
+
+.pageContent {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.pageContent h2 {
+  font-size: 28px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+}
+
+.pageContent > p {
+  font-size: 16px;
+  color: #666;
+  margin-bottom: 24px;
+}
+
+.placeholderContent {
+  margin-top: 24px;
+}
+
+.placeholderCard {
+  background-color: #ffffff;
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  padding: 48px;
+  text-align: center;
+  color: #999;
+  font-size: 16px;
+}
