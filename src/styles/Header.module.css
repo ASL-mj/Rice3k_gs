@@ -6,6 +6,8 @@
   background-color: #ffffff;
   border-bottom: 1px solid #e5e5e5;
   min-height: 70px;
+  flex-shrink: 0;
+  z-index: 10;
 }
 
 .headerLeft {

@@ -1,0 +1,92 @@
+.codeBlockWrapper {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #f6f8fa;
+}
+
+.codeBlockHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background-color: #e9ecef;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.codeLanguage {
+  font-size: 12px;
+  font-weight: 600;
+  color: #495057;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.headerButtons {
+  display: flex;
+  align-items: center;
+  /* gap: 8px; */
+}
+
+.collapseButton,
+.copyButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background-color: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #495057;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.collapseButton:hover,
+.copyButton:hover {
+  background-color: #ffffff;
+}
+
+.collapseButton:active,
+.copyButton:active {
+  transform: scale(0.95);
+}
+
+.codeBlock {
+  margin: 0 !important;
+  padding: 16px;
+  background-color: #f6f8fa;
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 500px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.codeBlock code {
+  background-color: transparent !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+
+/* 滚动条样式 */
+.codeBlock::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.codeBlock::-webkit-scrollbar-track {
+  background: #e9ecef;
+  border-radius: 4px;
+}
+
+.codeBlock::-webkit-scrollbar-thumb {
+  background: #adb5bd;
+  border-radius: 4px;
+}
+
+.codeBlock::-webkit-scrollbar-thumb:hover {
+  background: #868e96;
+}
