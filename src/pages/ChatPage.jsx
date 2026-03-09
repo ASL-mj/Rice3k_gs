@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   PaperClipOutlined,
@@ -14,8 +14,10 @@ import {
   FileWordOutlined,
   FilePdfOutlined,
   FileMarkdownOutlined,
+  CloseCircleOutlined,
 } from '@ant-design/icons';
 import { Popover, message, Spin } from 'antd';
+import { jsPDF } from 'jspdf';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
@@ -51,6 +53,26 @@ const formatTimestamp = (value) => {
   });
 };
 
+const formatFullTimestamp = (value) => {
+  if (!value) return '';
+  const date = typeof value === 'string' ? new Date(value) : value;
+  if (Number.isNaN(date.getTime?.() ?? date.getTime())) {
+    return '';
+  }
+  try {
+    return date.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  } catch (error) {
+    return date.toISOString();
+  }
+};
+
 const normalizeHistoryMessage = (entry, index) => ({
   id: entry.id ?? `${entry.session_id}-${entry.timestamp}-${index}`,
   role: entry.role === 'assistant' ? 'assistant' : 'user',
@@ -58,6 +80,41 @@ const normalizeHistoryMessage = (entry, index) => ({
   timestamp: entry.timestamp,
   metadata: entry.metadata || {},
 });
+
+const escapeHtml = (value = '') => {
+  const safeValue = value === null || value === undefined ? '' : String(value);
+  return safeValue
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+};
+
+const markdownToHTML = (markdown = '') =>
+  escapeHtml(markdown)
+    .replace(/\n{2,}/g, '<br/><br/>')
+    .replace(/\n/g, '<br/>');
+
+const markdownToPlainText = (markdown = '') =>
+  markdown
+    .replace(/```[\s\S]*?```/g, (block) => block.replace(/```/g, ''))
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/!\[[^\]]*]\([^)]+\)/g, '')
+    .replace(/\[([^\]]+)]\([^)]+\)/g, '$1')
+    .replace(/[*_~>#>-]/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+const buildExportFilename = (messageId = 'message', ext = 'txt') => {
+  const source =
+    typeof messageId === 'string' || typeof messageId === 'number'
+      ? String(messageId)
+      : 'message';
+  const safeId = source.replace(/[^\w-]/g, '-');
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  return `${safeId}-${timestamp}.${ext}`;
+};
 
 const ChatPage = ({
   isSidebarCollapsed = false,
@@ -78,11 +135,194 @@ const ChatPage = ({
   const [streamingMessageId, setStreamingMessageId] = useState(null);
   const [streamingReasoning, setStreamingReasoning] = useState('');
   const [reasoningExpandedMap, setReasoningExpandedMap] = useState({});
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editingDraft, setEditingDraft] = useState('');
+  const [streamingUserMessageId, setStreamingUserMessageId] = useState(null);
   const textareaRef = useRef(null);
   const messagesEndRef = useRef(null);
   const abortControllerRef = useRef(null);
   const skipHistoryRef = useRef(null);
   const streamingReasoningRef = useRef('');
+  const lastPromptRef = useRef('');
+  const latestExchange = useMemo(() => {
+    if (!messages.length) {
+      return null;
+    }
+    let assistantMessage = null;
+    let userMessage = null;
+    for (let idx = messages.length - 1; idx >= 0; idx -= 1) {
+      const entry = messages[idx];
+      if (!assistantMessage && entry.role === 'assistant') {
+        assistantMessage = entry;
+        continue;
+      }
+      if (assistantMessage && entry.role === 'user') {
+        userMessage = entry;
+        break;
+      }
+    }
+    if (assistantMessage && userMessage) {
+      return { userMessage, assistantMessage };
+    }
+    return null;
+  }, [messages]);
+  const latestUserMessageId = latestExchange?.userMessage.id || null;
+  const latestAssistantMessageId = latestExchange?.assistantMessage.id || null;
+  const findMessageById = useCallback(
+    (messageId) => messages.find((message) => message.id === messageId),
+    [messages]
+  );
+  const buildAssistantExportContext = useCallback(
+    (messageId) => {
+      const assistantMessage = findMessageById(messageId);
+      if (!assistantMessage || assistantMessage.role !== 'assistant') {
+        return null;
+      }
+      const currentIndex = messages.findIndex((entry) => entry.id === messageId);
+      let relatedUserMessage = null;
+      if (currentIndex > 0) {
+        for (let idx = currentIndex - 1; idx >= 0; idx -= 1) {
+          const candidate = messages[idx];
+          if (candidate.role === 'user' && candidate.content) {
+            relatedUserMessage = candidate;
+            break;
+          }
+        }
+      }
+      return { assistantMessage, relatedUserMessage };
+    },
+    [findMessageById, messages]
+  );
+
+  const PDF_CANVAS_WIDTH = 900;
+  const PDF_CANVAS_PADDING = 48;
+  const PDF_FONT_FAMILY = `"PingFang SC","Microsoft YaHei","SimSun",sans-serif`;
+  const wrapCanvasText = useCallback((ctx, text, font, maxWidth) => {
+    const normalized = (text ?? '').replace(/\r\n/g, '\n');
+    const paragraphs = normalized.split('\n');
+    const lines = [];
+    ctx.save();
+    ctx.font = font;
+    paragraphs.forEach((paragraph, index) => {
+      if (!paragraph) {
+        lines.push('');
+        return;
+      }
+      let currentLine = '';
+      for (const char of paragraph) {
+        const testLine = currentLine + char;
+        if (ctx.measureText(testLine).width > maxWidth && currentLine) {
+          lines.push(currentLine);
+          currentLine = char;
+        } else {
+          currentLine = testLine;
+        }
+      }
+      if (currentLine) {
+        lines.push(currentLine);
+      }
+      if (index < paragraphs.length - 1) {
+        lines.push('');
+      }
+    });
+    ctx.restore();
+    return lines.length ? lines : [''];
+  }, []);
+
+  const buildPdfSnapshot = useCallback(
+    ({ subtitle, metadataLines, question, answer }) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = PDF_CANVAS_WIDTH;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        return null;
+      }
+      const maxWidth = PDF_CANVAS_WIDTH - PDF_CANVAS_PADDING * 2;
+      const headingFont = `600 26px ${PDF_FONT_FAMILY}`;
+      const subtitleFont = `14px ${PDF_FONT_FAMILY}`;
+      const metaFont = `12px ${PDF_FONT_FAMILY}`;
+      const sectionTitleFont = `600 16px ${PDF_FONT_FAMILY}`;
+      const bodyFont = `14px ${PDF_FONT_FAMILY}`;
+      const layout = [];
+      const pushText = (text, font, color, lineHeight) => {
+        layout.push({ type: 'text', text, font, color, lineHeight });
+      };
+      const pushSpacer = (height) => layout.push({ type: 'spacer', height });
+      const pushWrapped = (content, font, color, lineHeight) => {
+        const wrapped = wrapCanvasText(ctx, content, font, maxWidth);
+        wrapped.forEach((line) => pushText(line, font, color, lineHeight));
+      };
+
+      pushText('Rice AI 信息导出', headingFont, '#111827', 34);
+      if (subtitle) {
+        pushText(subtitle, subtitleFont, '#4b5563', 22);
+        pushSpacer(6);
+      } else {
+        pushSpacer(4);
+      }
+      metadataLines.forEach((line) => pushText(line, metaFont, '#1f2937', 18));
+      pushSpacer(16);
+      pushText('提问', sectionTitleFont, '#111827', 22);
+      pushWrapped(question || '未找到关联的提问内容', bodyFont, '#1f2329', 22);
+      pushSpacer(12);
+      pushText('AI 回复', sectionTitleFont, '#111827', 22);
+      pushWrapped(answer || '无内容', bodyFont, '#1f2329', 22);
+
+      let height = PDF_CANVAS_PADDING;
+      layout.forEach((item) => {
+        if (item.type === 'text') {
+          height += item.lineHeight;
+        } else if (item.type === 'spacer') {
+          height += item.height;
+        }
+      });
+      height += PDF_CANVAS_PADDING;
+      canvas.height = height;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#dce3f2';
+      ctx.strokeStyle = '#dce3f2';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(
+        PDF_CANVAS_PADDING - 20,
+        PDF_CANVAS_PADDING - 20,
+        canvas.width - (PDF_CANVAS_PADDING - 20) * 2,
+        canvas.height - (PDF_CANVAS_PADDING - 20) * 2
+      );
+      let cursorY = PDF_CANVAS_PADDING;
+      layout.forEach((item) => {
+        if (item.type === 'text') {
+          ctx.font = item.font;
+          ctx.fillStyle = item.color;
+          cursorY += item.lineHeight;
+          if (item.text) {
+            ctx.fillText(item.text, PDF_CANVAS_PADDING, cursorY);
+          }
+        } else if (item.type === 'spacer') {
+          cursorY += item.height;
+        }
+      });
+      return {
+        dataUrl: canvas.toDataURL('image/png'),
+        width: canvas.width,
+        height: canvas.height,
+      };
+    },
+    [wrapCanvasText]
+  );
+
+  const downloadBlob = useCallback((blob, filename) => {
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.style.display = 'none';
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  }, []);
 
   const isNewChat = !dialogueId;
   const canSend = Boolean(inputValue.trim()) && !isStreaming && !isCreatingSession;
@@ -159,11 +399,7 @@ const ChatPage = ({
     };
   }, []);
 
-  useEffect(() => {
-    adjustTextareaHeight();
-  }, [inputValue, isExpanded]);
-
-  const adjustTextareaHeight = () => {
+  const adjustTextareaHeight = useCallback(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
     textarea.style.height = 'auto';
@@ -178,7 +414,11 @@ const ChatPage = ({
       textarea.style.height = `${scrollHeight}px`;
       textarea.style.overflowY = 'hidden';
     }
-  };
+  }, [isExpanded]);
+
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [adjustTextareaHeight, inputValue, isExpanded]);
 
   const needsExpandButton = () => {
     const textarea = textareaRef.current;
@@ -245,6 +485,11 @@ const ChatPage = ({
       setIsStreaming(false);
       setStreamingMessageId(null);
       setStreamingReasoning('');
+      setStreamingUserMessageId(null);
+      lastPromptRef.current = '';
+
+      setEditingMessageId(null);
+      setEditingDraft('');
     },
     []
   );
@@ -267,6 +512,8 @@ const ChatPage = ({
       setIsStreaming(false);
       setStreamingMessageId(null);
       setStreamingReasoning('');
+      setStreamingUserMessageId(null);
+      lastPromptRef.current = '';
       setReasoningExpandedMap((prev) => ({ ...prev, [assistantId]: false }));
       refreshSessions();
     },
@@ -348,8 +595,19 @@ const ChatPage = ({
     [handleStreamEvent]
   );
 
+  const createAssistantMessage = useCallback(
+    (assistantId) => ({
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      metadata: {},
+      timestamp: new Date().toISOString(),
+    }),
+    []
+  );
+
   const streamAssistantResponse = useCallback(
-    async (sessionId, prompt) => {
+    async (sessionId, prompt, { mode = 'chat' } = {}) => {
       if (!accessToken) return;
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -357,28 +615,23 @@ const ChatPage = ({
       const controller = new AbortController();
       abortControllerRef.current = controller;
       const assistantId = `assistant-${Date.now()}`;
-      const assistantMessage = {
-        id: assistantId,
-        role: 'assistant',
-        content: '',
-        metadata: {},
-        timestamp: new Date().toISOString(),
-      };
+      const assistantMessage = createAssistantMessage(assistantId);
       setMessages((prev) => [...prev, assistantMessage]);
       setReasoningExpandedMap((prev) => ({ ...prev, [assistantId]: true }));
       setIsStreaming(true);
       setStreamingMessageId(assistantId);
       setStreamingReasoning('');
+
+      const payload = {
+        message: prompt,
+        session_id: sessionId,
+        model_id: selectedModelId || undefined,
+      };
+
+      const apiCall = mode === 'regenerate' ? chatApi.regenerate : chatApi.stream;
+
       try {
-        const response = await chatApi.stream(
-          accessToken,
-          {
-            message: prompt,
-            session_id: sessionId,
-            model_id: selectedModelId || undefined,
-          },
-          { signal: controller.signal }
-        );
+        const response = await apiCall(accessToken, payload, { signal: controller.signal });
         await readChatStream(response, assistantId);
       } catch (error) {
         if (controller.signal.aborted) {
@@ -390,7 +643,161 @@ const ChatPage = ({
         abortControllerRef.current = null;
       }
     },
-    [accessToken, selectedModelId, cleanupStreamingState, readChatStream]
+    [accessToken, selectedModelId, createAssistantMessage, readChatStream, cleanupStreamingState]
+  );
+
+  const handleAbortStream = useCallback(() => {
+    if (!abortControllerRef.current) {
+      return;
+    }
+    const assistantId = streamingMessageId;
+    const userMessageId = streamingUserMessageId;
+    const restoreText = lastPromptRef.current;
+    try {
+      abortControllerRef.current.abort();
+    } catch (error) {
+      console.warn('Failed to abort stream', error);
+    }
+    abortControllerRef.current = null;
+    if (assistantId || userMessageId) {
+      setMessages((prev) =>
+        prev.filter((msg) => msg.id !== assistantId && msg.id !== userMessageId)
+      );
+      setReasoningExpandedMap((prev) => {
+        if (!assistantId || !prev[assistantId]) {
+          return prev;
+        }
+        const next = { ...prev };
+        delete next[assistantId];
+        return next;
+      });
+    }
+    setIsStreaming(false);
+    setStreamingMessageId(null);
+    setStreamingReasoning('');
+    setStreamingUserMessageId(null);
+    if (restoreText) {
+      setInputValue(restoreText);
+      setTimeout(() => {
+        adjustTextareaHeight();
+      }, 0);
+    }
+    message.info('已中止本次回答');
+  }, [adjustTextareaHeight, streamingMessageId, streamingUserMessageId]);
+
+  const triggerRegenerateFlow = useCallback(
+    async ({ newPrompt } = {}) => {
+      if (!isLoggedIn || !accessToken) {
+        onShowLoginModal?.();
+        return false;
+      }
+      if (isStreaming || isCreatingSession) {
+        message.warning('正在生成中，请稍候...');
+        return false;
+      }
+      if (!dialogueId) {
+        message.warning('当前无效的会话，无法重新生成');
+        return false;
+      }
+      if (!latestExchange) {
+        message.warning('没有可重新生成的问答');
+        return false;
+      }
+
+      const basePrompt = latestExchange.userMessage.content || '';
+      const finalPrompt = (typeof newPrompt === 'string' ? newPrompt : basePrompt).trim();
+      if (!finalPrompt) {
+        message.warning('消息内容不能为空');
+        return false;
+      }
+
+      const idsToRemove = [latestExchange.userMessage.id, latestExchange.assistantMessage.id];
+      const newUserMessage = {
+        id: `user-${Date.now()}`,
+        role: 'user',
+        content: finalPrompt,
+        timestamp: new Date().toISOString(),
+      };
+
+      setMessages((prev) => {
+        const filtered = prev.filter((msg) => !idsToRemove.includes(msg.id));
+        return [...filtered, newUserMessage];
+      });
+      setReasoningExpandedMap((prev) => {
+        const next = { ...prev };
+        idsToRemove.forEach((id) => {
+          if (Object.prototype.hasOwnProperty.call(next, id)) {
+            delete next[id];
+          }
+        });
+        return next;
+      });
+      setStreamingUserMessageId(newUserMessage.id);
+      lastPromptRef.current = finalPrompt;
+      setEditingMessageId(null);
+      setEditingDraft('');
+      scrollToBottom();
+
+      await streamAssistantResponse(dialogueId, finalPrompt, { mode: 'regenerate' });
+      return true;
+    },
+    [
+      accessToken,
+      dialogueId,
+      isCreatingSession,
+      isLoggedIn,
+      isStreaming,
+      latestExchange,
+      onShowLoginModal,
+      scrollToBottom,
+      streamAssistantResponse,
+    ]
+  );
+
+  const handleEditMessage = useCallback(
+    (messageId) => {
+      if (isStreaming) {
+        message.warning('请等待当前回复完成');
+        return;
+      }
+      if (!latestExchange || latestExchange.userMessage.id !== messageId) {
+        message.warning('只能编辑最近的一条用户消息');
+        return;
+      }
+      setEditingMessageId(messageId);
+      setEditingDraft(latestExchange.userMessage.content || '');
+    },
+    [isStreaming, latestExchange]
+  );
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessageId(null);
+    setEditingDraft('');
+  }, []);
+
+  const handleSubmitEdit = useCallback(async () => {
+    if (!editingMessageId) return;
+    const trimmed = editingDraft.trim();
+    if (!trimmed) {
+      message.warning('请输入新的问题');
+      return;
+    }
+    await triggerRegenerateFlow({ newPrompt: trimmed });
+  }, [editingDraft, editingMessageId, triggerRegenerateFlow]);
+
+  const handleRefreshMessage = useCallback(
+    async (messageId) => {
+      if (isStreaming) {
+        message.warning('请等待当前回复完成');
+        return;
+      }
+      if (!latestExchange || latestExchange.assistantMessage.id !== messageId) {
+        message.warning('只能重新生成最近的 AI 回复');
+        return;
+      }
+      await triggerRegenerateFlow();
+    },
+    [isStreaming, latestExchange, triggerRegenerateFlow]
   );
 
   const handleSend = async () => {
@@ -419,6 +826,8 @@ const ChatPage = ({
         timestamp: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, userMessage]);
+      setStreamingUserMessageId(userMessage.id);
+      lastPromptRef.current = prompt;
       scrollToBottom();
       await streamAssistantResponse(sessionId, prompt);
     } catch (error) {
@@ -499,28 +908,167 @@ const ChatPage = ({
     }
   };
 
-  const handleEditMessage = (messageId) => {
-    console.log('Edit message:', messageId);
-  };
+  const handleExportWord = useCallback(
+    (messageId) => {
+      const context = buildAssistantExportContext(messageId);
+      if (!context?.assistantMessage?.content) {
+        message.warning('没有可导出的内容');
+        return;
+      }
+      const { assistantMessage, relatedUserMessage } = context;
+      const exportTime = formatFullTimestamp(new Date());
+      const metaRows = [
+        {
+          label: '提问时间',
+          value: formatFullTimestamp(relatedUserMessage?.timestamp) || '—',
+        },
+        {
+          label: '回复时间',
+          value: formatFullTimestamp(assistantMessage.timestamp) || '—',
+        },
+        { label: '导出时间', value: exportTime },
+      ];
+      const metaHtml = metaRows
+        .map(
+          (row) => `
+            <div class="meta-row">
+              <span class="meta-label">${escapeHtml(row.label)}</span>
+              <span class="meta-value">${escapeHtml(row.value)}</span>
+            </div>
+          `
+        )
+        .join('');
+      const questionHtml = relatedUserMessage?.content
+        ? markdownToHTML(relatedUserMessage.content)
+        : '<em>未找到关联的提问内容</em>';
+      const answerHtml = markdownToHTML(assistantMessage.content);
+      const htmlContent = `<!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="UTF-8" />
+          <title>Rice AI 信息导出</title>
+          <style>
+            body { font-family: 'PingFang SC','Helvetica Neue',Arial,sans-serif; background-color: #f5f7fb; color: #1f2329; padding: 32px; }
+            .card { background: #fff; border-radius: 16px; padding: 32px; max-width: 820px; margin: 0 auto; box-shadow: 0 10px 24px rgba(15,23,42,0.12); }
+            h1 { font-size: 24px; margin-bottom: 6px; }
+            .subtitle { font-size: 14px; color: #4c596e; margin-bottom: 18px; }
+            .meta-block { border: 1px solid #e5eaf3; border-radius: 12px; padding: 12px 16px; background: #f9fbff; margin-bottom: 24px; }
+            .meta-row { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; border-bottom: 1px solid #eef2f8; }
+            .meta-row:last-child { border-bottom: none; }
+            .meta-label { color: #6b778c; }
+            .meta-value { color: #1f2329; font-weight: 600; margin-left: 18px; }
+            .section { margin-bottom: 24px; }
+            .section-title { font-size: 16px; font-weight: 600; margin-bottom: 10px; }
+            .section-body { font-size: 14px; line-height: 1.7; }
+            .section-body em { color: #8892a6; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h1>Rice AI 信息导出</h1>
+            <div class="subtitle">导出信息</div>
+            <div class="meta-block">
+              ${metaHtml}
+            </div>
+            <div class="section">
+              <div class="section-title">提问</div>
+              <div class="section-body">${questionHtml}</div>
+            </div>
+            <div class="section">
+              <div class="section-title">AI 回复</div>
+              <div class="section-body">${answerHtml}</div>
+            </div>
+          </div>
+        </body>
+      </html>`;
+      const blob = new Blob([htmlContent], {
+        type: 'application/msword;charset=utf-8',
+      });
+      downloadBlob(blob, buildExportFilename(messageId, 'doc'));
+    },
+    [buildAssistantExportContext, dialogueId, downloadBlob]
+  );
 
-  const handleRefreshMessage = (messageId) => {
-    console.log('Refresh message:', messageId);
-  };
+  const handleExportPDF = useCallback(
+    (messageId) => {
+      const context = buildAssistantExportContext(messageId);
+      if (!context?.assistantMessage?.content) {
+        message.warning('没有可导出的内容');
+        return;
+      }
+      const { assistantMessage, relatedUserMessage } = context;
+      const metadataLines = [
+        `提问时间：${formatFullTimestamp(relatedUserMessage?.timestamp) || '—'}`,
+        `回复时间：${formatFullTimestamp(assistantMessage.timestamp) || '—'}`,
+        `导出时间：${formatFullTimestamp(new Date())}`,
+      ];
+      const snapshot = buildPdfSnapshot({
+        subtitle: '',
+        metadataLines,
+        question:
+          markdownToPlainText(relatedUserMessage?.content || '') ||
+          '未找到关联的提问内容',
+        answer: markdownToPlainText(assistantMessage.content) || '无内容',
+      });
+      if (!snapshot) {
+        message.error('PDF 渲染失败，请稍后重试');
+        return;
+      }
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+      const marginX = 32;
+      const marginY = 32;
+      const availableWidth = doc.internal.pageSize.getWidth() - marginX * 2;
+      const availableHeight = doc.internal.pageSize.getHeight() - marginY * 2;
+      const scale = Math.min(
+        availableWidth / snapshot.width,
+        availableHeight / snapshot.height,
+        1
+      );
+      const renderWidth = snapshot.width * scale;
+      const renderHeight = snapshot.height * scale;
+      const offsetX = marginX + (availableWidth - renderWidth) / 2;
+      doc.addImage(
+        snapshot.dataUrl,
+        'PNG',
+        offsetX,
+        marginY,
+        renderWidth,
+        renderHeight
+      );
+      doc.save(buildExportFilename(messageId, 'pdf'));
+    },
+    [buildAssistantExportContext, buildPdfSnapshot, dialogueId]
+  );
 
-  const handleExportWord = (messageId) => {
-    console.log('Export to Word:', messageId);
-    message.info('导出为 Word 功能开发中');
-  };
-
-  const handleExportPDF = (messageId) => {
-    console.log('Export to PDF:', messageId);
-    message.info('导出为 PDF 功能开发中');
-  };
-
-  const handleExportMarkdown = (messageId) => {
-    console.log('Export to Markdown:', messageId);
-    message.info('导出为 Markdown 功能开发中');
-  };
+  const handleExportMarkdown = useCallback(
+    (messageId) => {
+      const context = buildAssistantExportContext(messageId);
+      if (!context?.assistantMessage?.content) {
+        message.warning('没有可导出的内容');
+        return;
+      }
+      const { assistantMessage, relatedUserMessage } = context;
+      const lines = [
+        '# Rice AI 信息导出',
+        '',
+        `- 提问时间：${formatFullTimestamp(relatedUserMessage?.timestamp) || '—'}`,
+        `- 回复时间：${formatFullTimestamp(assistantMessage.timestamp) || '—'}`,
+        `- 导出时间：${formatFullTimestamp(new Date())}`,
+        '',
+        '## 提问',
+        relatedUserMessage?.content || '_未找到关联的提问内容_',
+        '',
+        '## AI 回复',
+        assistantMessage.content || '_无内容_',
+        '',
+      ];
+      const blob = new Blob([lines.join('\n')], {
+        type: 'text/markdown;charset=utf-8',
+      });
+      downloadBlob(blob, buildExportFilename(messageId, 'md'));
+    },
+    [buildAssistantExportContext, dialogueId, downloadBlob]
+  );
 
   const uploadMenuContent = (
     <div className={styles.uploadMenu}>
@@ -557,11 +1105,6 @@ const ChatPage = ({
       </div>
     </div>
   );
-
-  const latestUserMessageId =
-    [...messages].reverse().find((message) => message.role === 'user')?.id || null;
-  const latestAssistantMessageId =
-    [...messages].reverse().find((message) => message.role === 'assistant')?.id || null;
 
 const renderReasoningPanel = (
   message,
@@ -636,6 +1179,7 @@ const renderReasoningPanel = (
                   className={styles.messageActionBtn}
                   onClick={() => handleEditMessage(message.id)}
                   title="编辑"
+                  disabled={isStreaming || isCreatingSession || editingMessageId === message.id}
                 >
                   <EditOutlined />
                 </button>
@@ -648,6 +1192,7 @@ const renderReasoningPanel = (
                   className={styles.messageActionBtn}
                   onClick={() => handleRefreshMessage(message.id)}
                   title="重新生成"
+                  disabled={isStreaming || isCreatingSession}
                 >
                   <ReloadOutlined />
                 </button>
@@ -703,29 +1248,58 @@ const renderReasoningPanel = (
               setReasoningExpandedMap
             )}
             <div className={styles.messageText}>
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                rehypePlugins={[rehypeHighlight]}
-                components={{
-                  code(props) {
-                    const { children, className, ...rest } = props;
-                    const match = /language-(\w+)/.exec(className || '');
-                    const hasNewlines = String(children).includes('\n');
-                    const isCodeBlock = match || hasNewlines;
-                    return isCodeBlock ? (
-                      <CodeBlock className={className} {...rest}>
-                        {children}
-                      </CodeBlock>
-                    ) : (
-                      <code {...rest} className={className}>
-                        {children}
-                      </code>
-                    );
-                  },
-                }}
-              >
-                {message.content}
-              </ReactMarkdown>
+              {message.role === 'user' && editingMessageId === message.id ? (
+                <div className={styles.editingContainer}>
+                  <textarea
+                    className={styles.editTextarea}
+                    value={editingDraft}
+                    onChange={(e) => setEditingDraft(e.target.value)}
+                    rows={4}
+                    placeholder="编辑你的问题..."
+                    disabled={isStreaming}
+                  />
+                  <div className={styles.editActions}>
+                    <button
+                      className={`${styles.editActionBtn} ${styles.editSaveBtn}`}
+                      onClick={handleSubmitEdit}
+                      disabled={!editingDraft.trim() || isStreaming || isCreatingSession}
+                    >
+                      保存
+                    </button>
+                    <button
+                      className={`${styles.editActionBtn} ${styles.editCancelBtn}`}
+                      onClick={handleCancelEdit}
+                      disabled={isStreaming}
+                    >
+                      取消
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeHighlight]}
+                  components={{
+                    code(props) {
+                      const { children, className, ...rest } = props;
+                      const match = /language-(\w+)/.exec(className || '');
+                      const hasNewlines = String(children).includes('\n');
+                      const isCodeBlock = match || hasNewlines;
+                      return isCodeBlock ? (
+                        <CodeBlock className={className} {...rest}>
+                          {children}
+                        </CodeBlock>
+                      ) : (
+                        <code {...rest} className={className}>
+                          {children}
+                        </code>
+                      );
+                    },
+                  }}
+                >
+                  {message.content}
+                </ReactMarkdown>
+              )}
             </div>
             {renderMessageMeta(message)}
           </div>
@@ -781,13 +1355,23 @@ const renderReasoningPanel = (
                   </button>
                 )}
               </div>
-              <button
-                className={`${styles.sendBtn} ${inputValue.trim() ? styles.active : ''}`}
-                onClick={handleSend}
-                disabled={!canSend}
-              >
-                <SendOutlined />
-              </button>
+              {isStreaming ? (
+                <button
+                  className={`${styles.sendBtn} ${styles.stopBtn}`}
+                  onClick={handleAbortStream}
+                  title="中止回复"
+                >
+                  <CloseCircleOutlined />
+                </button>
+              ) : (
+                <button
+                  className={`${styles.sendBtn} ${inputValue.trim() ? styles.active : ''}`}
+                  onClick={handleSend}
+                  disabled={!canSend}
+                >
+                  <SendOutlined />
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -849,13 +1433,23 @@ const renderReasoningPanel = (
                     </button>
                   )}
                 </div>
-                <button
-                  className={`${styles.sendBtn} ${canSend ? styles.active : ''}`}
-                  onClick={handleSend}
-                  disabled={!canSend}
-                >
-                  <SendOutlined />
-                </button>
+                {isStreaming ? (
+                  <button
+                    className={`${styles.sendBtn} ${styles.stopBtn}`}
+                    onClick={handleAbortStream}
+                    title="中止回复"
+                  >
+                    <CloseCircleOutlined />
+                  </button>
+                ) : (
+                  <button
+                    className={`${styles.sendBtn} ${canSend ? styles.active : ''}`}
+                    onClick={handleSend}
+                    disabled={!canSend}
+                  >
+                    <SendOutlined />
+                  </button>
+                )}
               </div>
             </div>
           </div>

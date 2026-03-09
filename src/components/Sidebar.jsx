@@ -19,6 +19,8 @@ import {
   SettingOutlined,
   InfoCircleOutlined,
   LogoutOutlined,
+  MailOutlined,
+  PhoneOutlined,
 } from '@ant-design/icons';
 import { sessionApi } from '../utils/api';
 
@@ -280,6 +282,18 @@ const Sidebar = ({
 
   const renderUserMenuContent = () => (
     <div className={styles.popoverMenu}>
+      <div className={styles.userMenuHeader}>
+        <div className={styles.userMenuName}>{user?.username || 'User'}</div>
+        <div className={styles.userMenuContact}>
+          <MailOutlined />
+          <span>{user?.email || '未绑定邮箱'}</span>
+        </div>
+        <div className={styles.userMenuContact}>
+          <PhoneOutlined />
+          <span>{user?.phone || '未绑定电话'}</span>
+        </div>
+      </div>
+      <div className={styles.menuDivider} />
       {USER_MENU_ACTIONS.map(action => (
         <div
           key={action.id}
@@ -486,6 +500,7 @@ const Sidebar = ({
                 <div className={styles.userInfo}>
                   <div className={styles.userName}>{user?.username || 'User'}</div>
                   <div className={styles.userEmail}>{user?.email || '未绑定邮箱'}</div>
+                  <div className={styles.userPhone}>{user?.phone || '未绑定电话'}</div>
                 </div>
               )}
             </div>

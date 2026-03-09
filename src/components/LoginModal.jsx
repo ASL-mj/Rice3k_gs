@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { UserOutlined, LockOutlined, SafetyOutlined, MailOutlined } from '@ant-design/icons';
+import { UserOutlined, LockOutlined, SafetyOutlined, MailOutlined, PhoneOutlined } from '@ant-design/icons';
 import { message } from 'antd';
 import styles from '../styles/LoginModal.module.css';
 import logoImg from '../assets/images/logo.png';
@@ -15,6 +15,7 @@ const initialErrors = {
   username: '',
   password: '',
   email: '',
+  phone: '',
   captcha: '',
   global: '',
 };
@@ -25,6 +26,7 @@ const LoginModal = ({ isOpen = false, onClose = () => {}, onAuthSuccess = () => 
     username: '',
     password: '',
     email: '',
+    phone: '',
     confirmPassword: '',
     captcha: '',
   });
@@ -48,6 +50,7 @@ const LoginModal = ({ isOpen = false, onClose = () => {}, onAuthSuccess = () => 
       username: '',
       password: '',
       email: '',
+      phone: '',
       confirmPassword: '',
       captcha: '',
     });
@@ -96,10 +99,11 @@ const LoginModal = ({ isOpen = false, onClose = () => {}, onAuthSuccess = () => 
     const nextErrors = { ...initialErrors };
     if (!formValues.username.trim()) nextErrors.username = '请输入用户名';
     if (!formValues.email.trim()) nextErrors.email = '请输入邮箱';
+    if (!formValues.phone.trim()) nextErrors.phone = '请输入电话';
     if (!formValues.password.trim()) nextErrors.password = '请输入密码';
     if (formValues.password !== formValues.confirmPassword) nextErrors.password = '两次密码不一致';
     setErrors(nextErrors);
-    return !nextErrors.username && !nextErrors.email && !nextErrors.password;
+    return !nextErrors.username && !nextErrors.email && !nextErrors.phone && !nextErrors.password;
   };
 
   const validateReset = () => {
@@ -155,6 +159,7 @@ const LoginModal = ({ isOpen = false, onClose = () => {}, onAuthSuccess = () => 
       const payload = {
         username: formValues.username.trim(),
         email: formValues.email.trim(),
+        phone: formValues.phone.trim(),
         password: formValues.password,
       };
       await authApi.register(payload);
@@ -289,6 +294,17 @@ const LoginModal = ({ isOpen = false, onClose = () => {}, onAuthSuccess = () => 
               />
             </div>
             {errors.email && <p className={styles.errorText}>{errors.email}</p>}
+            <div className={`${styles.inputGroup} ${errors.phone ? styles.errorGroup : ''}`}>
+              <PhoneOutlined className={styles.inputIcon} />
+              <input
+                type="tel"
+                placeholder="请输入联系电话"
+                className={styles.input}
+                value={formValues.phone}
+                onChange={(e) => updateField('phone', e.target.value)}
+              />
+            </div>
+            {errors.phone && <p className={styles.errorText}>{errors.phone}</p>}
             <div className={`${styles.inputGroup} ${errors.password ? styles.errorGroup : ''}`}>
               <LockOutlined className={styles.inputIcon} />
               <input

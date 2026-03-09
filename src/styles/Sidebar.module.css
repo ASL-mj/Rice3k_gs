@@ -341,9 +341,44 @@
   white-space: nowrap;
 }
 
+.userPhone {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ==================== 弹出菜单 ==================== */
 .popoverMenu {
   min-width: 100px;
+}
+
+.userMenuHeader {
+  padding: 8px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.userMenuName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.userMenuContact {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.menuDivider {
+  height: 1px;
+  background-color: var(--color-border);
+  margin: 6px 0;
 }
 
 .popoverMenu .menuItem {
