@@ -6,7 +6,7 @@
 .title {
   font-size: 28px;
   font-weight: 600;
-  color: #333;
+  color: var(--color-text-primary);
   margin-bottom: 24px;
 }
 
@@ -18,7 +18,7 @@
 }
 
 .statCard {
-  background: #ffffff;
+  background: var(--color-surface);
   border-radius: 8px;
   padding: 20px;
   border-top: 3px solid;
@@ -28,13 +28,13 @@
 .statValue {
   font-size: 32px;
   font-weight: 700;
-  color: #333;
+  color: var(--color-text-primary);
   margin-bottom: 8px;
 }
 
 .statLabel {
   font-size: 14px;
-  color: #666;
+  color: var(--color-text-secondary);
 }
 
 
@@ -54,14 +54,14 @@
   left: 12px;
   top: 50%;
   transform: translateY(-50%);
-  color: #999;
+  color: var(--color-text-muted);
   font-size: 16px;
 }
 
 .searchInput {
   width: 100%;
   padding: 10px 12px 10px 40px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   font-size: 14px;
   outline: none;
@@ -79,18 +79,18 @@
 }
 
 .filterIcon {
-  color: #666;
+  color: var(--color-text-secondary);
   font-size: 16px;
 }
 
 .filterSelect {
   padding: 10px 12px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   font-size: 14px;
   outline: none;
   cursor: pointer;
-  background: #ffffff;
+  background: var(--color-surface);
   transition: border-color 0.2s;
 }
 
@@ -100,7 +100,7 @@
 
 .tableWrapper {
   overflow-x: auto;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--color-border);
 }
 
 .table {
@@ -109,7 +109,7 @@
 }
 
 .table thead {
-  background: #f5f5f5;
+  background: var(--color-surface-alt);
 }
 
 .table th {
@@ -117,15 +117,15 @@
   text-align: left;
   font-size: 14px;
   font-weight: 600;
-  color: #333;
-  border-bottom: 2px solid #e5e5e5;
+  color: var(--color-text-primary);
+  border-bottom: 2px solid var(--color-border);
 }
 
 .table td {
   padding: 16px;
   font-size: 14px;
-  color: #666;
-  border-bottom: 1px solid #f0f0f0;
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .table tbody tr:hover {
@@ -138,7 +138,7 @@
 }
 
 .taskName {
-  color: #333;
+  color: var(--color-text-primary);
   font-weight: 500;
 }
 
@@ -148,7 +148,7 @@
   border-radius: 12px;
   font-size: 12px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--color-on-primary);
 }
 
 .fileList {
@@ -160,10 +160,10 @@
 .fileTag {
   display: inline-block;
   padding: 2px 8px;
-  background: #f0f0f0;
+  background: var(--color-surface-alt);
   border-radius: 4px;
   font-size: 12px;
-  color: #666;
+  color: var(--color-text-secondary);
 }
 
 .actions {
@@ -174,14 +174,14 @@
 .actionBtn {
   width: 32px;
   height: 32px;
-  border: 1px solid #e5e5e5;
-  background: #ffffff;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
   border-radius: 4px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #666;
+  color: var(--color-text-secondary);
   transition: all 0.2s;
 }
 

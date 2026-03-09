@@ -2,7 +2,7 @@
   position: relative;
   border-radius: 8px;
   overflow: hidden;
-  background-color: #f6f8fa;
+  background-color: var(--color-panel-muted);
 }
 
 .codeBlockHeader {
@@ -11,7 +11,7 @@
   justify-content: space-between;
   padding: 4px 8px;
   background-color: #e9ecef;
-  border-bottom: 1px solid #dee2e6;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .codeLanguage {
@@ -45,7 +45,7 @@
 
 .collapseButton:hover,
 .copyButton:hover {
-  background-color: #ffffff;
+  background-color: var(--color-surface);
 }
 
 .collapseButton:active,
@@ -56,7 +56,7 @@
 .codeBlock {
   margin: 0 !important;
   padding: 16px;
-  background-color: #f6f8fa;
+  background-color: var(--color-panel-muted);
   overflow-x: auto;
   overflow-y: auto;
   max-height: 500px;

@@ -3,7 +3,7 @@
   width: 100%;
   height: 100%;
   overflow-y: auto;
-  background-color: #f9fafb;
+  background-color: var(--color-panel-strong);
 }
 
 .header {
@@ -16,7 +16,7 @@
 .pageTitle {
   font-size: 24px;
   font-weight: 600;
-  color: #333;
+  color: var(--color-text-primary);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -26,7 +26,7 @@
 .saveChangesBtn {
   padding: 10px 20px;
   background: #1a73e8;
-  color: #ffffff;
+  color: var(--color-on-primary);
   border: none;
   border-radius: 6px;
   font-size: 14px;
@@ -49,11 +49,12 @@
 
 .sidebar {
   width: 220px;
-  background: #ffffff;
+  background: var(--color-surface);
   border-radius: 8px;
   padding: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   height: fit-content;
+  color: var(--color-text-primary);
 }
 
 .navItem {
@@ -69,29 +70,33 @@
   transition: background-color 0.2s;
   text-align: left;
   margin-bottom: 4px;
+  color: var(--color-text-primary);
 }
 
 .navItem:hover {
-  background-color: #f5f5f5;
+  background-color: var(--color-surface-alt);
 }
 
 .navItem.active {
-  background-color: #e3f2fd;
-  color: #1976d2;
+  background-color: var(--color-border-soft);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
 }
 
 .navIcon {
   font-size: 16px;
+  color: inherit;
 }
 
 .navLabel {
   font-size: 14px;
   font-weight: 500;
+  color: inherit;
 }
 
 .content {
   flex: 1;
-  background: #ffffff;
+  background: var(--color-surface);
   border-radius: 8px;
   padding: 32px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -106,7 +111,7 @@
   gap: 16px;
   margin-bottom: 32px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #e5e5e5;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .sectionIcon {
@@ -117,13 +122,13 @@
 .sectionTitle {
   font-size: 20px;
   font-weight: 600;
-  color: #333;
+  color: var(--color-text-primary);
   margin: 0 0 4px 0;
 }
 
 .sectionDesc {
   font-size: 14px;
-  color: #666;
+  color: var(--color-text-secondary);
   margin: 0;
 }
 
@@ -137,7 +142,7 @@
   gap: 8px;
   font-size: 14px;
   font-weight: 500;
-  color: #333;
+  color: var(--color-text-primary);
   margin-bottom: 8px;
 }
 
@@ -156,7 +161,7 @@
 .input {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   font-size: 14px;
   transition: border-color 0.2s;
@@ -169,7 +174,7 @@
 
 .hint {
   font-size: 12px;
-  color: #999;
+  color: var(--color-text-muted);
   margin: 6px 0 0 0;
 }
 
@@ -205,19 +210,19 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: #666;
+  color: var(--color-text-secondary);
   font-size: 16px;
   padding: 4px;
 }
 
 .eyeBtn:hover {
-  color: #333;
+  color: var(--color-text-primary);
 }
 
 .updateBtn {
   padding: 10px 20px;
   background: #1a73e8;
-  color: #ffffff;
+  color: var(--color-on-primary);
   border: none;
   border-radius: 6px;
   font-size: 14px;
@@ -242,7 +247,7 @@
 .subsectionTitle {
   font-size: 16px;
   font-weight: 600;
-  color: #333;
+  color: var(--color-text-primary);
   margin: 0 0 8px 0;
   display: flex;
   align-items: center;
@@ -251,7 +256,7 @@
 
 .subsectionDesc {
   font-size: 14px;
-  color: #666;
+  color: var(--color-text-secondary);
   margin: 0 0 16px 0;
 }
 
@@ -313,7 +318,7 @@
 .themeBtn {
   flex: 1;
   padding: 12px;
-  background: #f5f5f5;
+  background: var(--color-surface-alt);
   border: 2px solid transparent;
   border-radius: 8px;
   cursor: pointer;
@@ -339,10 +344,10 @@
 .select {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   font-size: 14px;
-  background: #ffffff;
+  background: var(--color-surface);
   cursor: pointer;
   transition: border-color 0.2s;
 }
@@ -357,7 +362,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 16px 0;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .settingRow:last-child {
@@ -367,22 +372,22 @@
 .settingLabel {
   font-size: 14px;
   font-weight: 500;
-  color: #333;
+  color: var(--color-text-primary);
   margin-bottom: 4px;
 }
 
 .settingDesc {
   font-size: 13px;
-  color: #666;
+  color: var(--color-text-secondary);
   margin: 0;
 }
 
 .balanceIndicator {
   padding: 6px 16px;
-  background: #f0f0f0;
+  background: var(--color-surface-alt);
   border-radius: 16px;
   font-size: 13px;
-  color: #666;
+  color: var(--color-text-secondary);
   font-weight: 500;
 }
 
@@ -406,7 +411,7 @@
 
 .dangerDesc {
   font-size: 14px;
-  color: #666;
+  color: var(--color-text-secondary);
   margin: 0;
 }
 
@@ -433,7 +438,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 20px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   margin-bottom: 16px;
 }
@@ -441,20 +446,20 @@
 .dangerLabel {
   font-size: 16px;
   font-weight: 600;
-  color: #333;
+  color: var(--color-text-primary);
   margin-bottom: 4px;
 }
 
 .dangerCardDesc {
   font-size: 14px;
-  color: #666;
+  color: var(--color-text-secondary);
   margin: 0;
 }
 
 .deleteBtn {
   padding: 10px 20px;
   background: #ef4444;
-  color: #ffffff;
+  color: var(--color-on-primary);
   border: none;
   border-radius: 6px;
   font-size: 14px;
@@ -472,9 +477,9 @@
 
 .exportBtn {
   padding: 10px 20px;
-  background: #ffffff;
-  color: #333;
-  border: 1px solid #e5e5e5;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   font-size: 14px;
   font-weight: 500;

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Popover } from 'antd';
+import { Popover, Modal, message } from 'antd';
 import styles from '../styles/Sidebar.module.css';
 import logoImg from '../assets/images/logo.png';
 import menuFoldIcon from '../assets/icons/menu-fold.svg';
@@ -14,13 +14,15 @@ import Avatar from '@/assets/images/LogoTop.png';
 import {
   EllipsisOutlined,
   EditOutlined,
-  ShareAltOutlined,
   VerticalAlignTopOutlined,
   DeleteOutlined,
   SettingOutlined,
   InfoCircleOutlined,
-  LogoutOutlined
+  LogoutOutlined,
 } from '@ant-design/icons';
+import { sessionApi } from '../utils/api';
+
+const RICE3KGS_URL = 'http://101.201.107.228:8002/#/Rice3KGS/home/';
 
 // ==================== 配置常量 ====================
 const NAVIGATION_ITEMS = [
@@ -41,20 +43,11 @@ const NAVIGATION_ITEMS = [
       { id: 'genome-browser', label: 'Genome Browser', path: '/tools/genome-browser' },
     ]
   },
-  { id: 'code', icon: codeIcon, label: 'Rice3KGS', path: '/code' },
-];
-
-const DIALOGUE_HISTORY = [
-  { id: 1, title: '如何优化React应用性能？' },
-  { id: 2, title: '解释一下JavaScript闭包的概念' },
-  { id: 3, title: '数据库索引的最佳实践' },
-  { id: 4, title: 'RESTful API设计原则' },
-  { id: 5, title: 'Docker容器化部署指南' },
+  { id: 'code', icon: codeIcon, label: 'Rice3KGS', externalUrl: RICE3KGS_URL },
 ];
 
 const DIALOGUE_MENU_ACTIONS = [
   { id: 'rename', icon: EditOutlined, label: 'Rename' },
-  { id: 'share', icon: ShareAltOutlined, label: 'Share' },
   { id: 'pin', icon: VerticalAlignTopOutlined, label: 'Pin' },
   { id: 'delete', icon: DeleteOutlined, label: 'Delete' },
 ];
@@ -65,21 +58,67 @@ const USER_MENU_ACTIONS = [
   { id: 'logout', icon: LogoutOutlined, label: 'Log Out' },
 ];
 
+const POPOVER_STYLES = {
+  container: {
+    backgroundColor: 'var(--color-surface)',
+    border: '1px solid var(--color-border)',
+    borderRadius: 8,
+    padding: 6,
+    boxShadow: '0 14px 28px var(--color-card-shadow)',
+  },
+  content: {
+    color: 'var(--color-text-primary)',
+  },
+};
+
 // ==================== 主组件 ====================
-const Sidebar = ({ isCollapsed, onToggleCollapse, onLogout, isLoggedIn, onShowLoginModal }) => {
+const Sidebar = ({
+  isCollapsed,
+  onToggleCollapse,
+  onLogout,
+  isLoggedIn,
+  onShowLoginModal,
+  user,
+  dialogues = [],
+  sessions = [],
+  accessToken,
+  onSessionsChange = () => {},
+}) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [dialogueMenuOpen, setDialogueMenuOpen] = useState({});
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
+  const [renameTargetId, setRenameTargetId] = useState(null);
+  const [renameSubmitting, setRenameSubmitting] = useState(false);
+  const dialogueMap = useMemo(() => {
+    const map = new Map();
+    dialogues.forEach((item) => map.set(item.id, item));
+    return map;
+  }, [dialogues]);
 
   // ==================== 事件处理函数 ====================
+  const requireAuth = () => {
+    if (!isLoggedIn || !accessToken) {
+      message.warning('请先登录后再执行此操作');
+      onShowLoginModal?.();
+      return false;
+    }
+    return true;
+  };
+
   const handleNavClick = (item) => {
     if (item.subItems) {
       // 如果有子菜单，不做任何操作（由 Popover 控制）
       return;
     }
-    
+
+    if (item.externalUrl) {
+      window.location.href = item.externalUrl;
+      return;
+    }
+
     // 检查登录状态（聊天页面除外）
     if (!isLoggedIn && item.id !== 'chat') {
       onShowLoginModal();
@@ -102,6 +141,9 @@ const Sidebar = ({ isCollapsed, onToggleCollapse, onLogout, isLoggedIn, onShowLo
   };
 
   const handleDialogueClick = (dialogue) => {
+    if (renameTargetId === dialogue.id) {
+      return;
+    }
     navigate(`/chat/${dialogue.id}`);
   };
 
@@ -121,7 +163,53 @@ const Sidebar = ({ isCollapsed, onToggleCollapse, onLogout, isLoggedIn, onShowLo
 
   const handleDialogueMenuClick = (action, dialogueId) => {
     setDialogueMenuOpen({ ...dialogueMenuOpen, [dialogueId]: false });
-    console.log(`${action} dialogue ${dialogueId}`);
+    const dialogue = dialogueMap.get(dialogueId);
+    if (!dialogue) {
+      return;
+    }
+
+    if (action === 'rename') {
+      if (!requireAuth()) {
+        return;
+      }
+      setRenameTargetId(dialogue.id);
+      setRenameValue(dialogue.title || '');
+      return;
+    }
+
+    if (!requireAuth()) {
+      return;
+    }
+
+    if (action === 'delete') {
+      Modal.confirm({
+        title: '删除会话',
+        content: `确定要删除「${dialogue.title || '未命名会话'}」吗？此操作不可撤销。`,
+        okText: '删除',
+        cancelText: '取消',
+        okButtonProps: { danger: true },
+        onOk: async () => {
+          try {
+            await sessionApi.delete(accessToken, dialogue.id);
+            message.success('会话已删除');
+            onSessionsChange((prev = []) =>
+              prev.filter((session) => session.session_id !== dialogue.id)
+            );
+            if (location.pathname === `/chat/${dialogue.id}`) {
+              navigate('/chat');
+            }
+          } catch (error) {
+            message.error(error.message || '删除失败');
+            throw error;
+          }
+        },
+      });
+      return;
+    }
+
+    if (action === 'pin') {
+      message.info('Pin 功能开发中');
+    }
   };
 
   const handleLogoClick = () => {
@@ -132,7 +220,46 @@ const Sidebar = ({ isCollapsed, onToggleCollapse, onLogout, isLoggedIn, onShowLo
     }
   };
 
+  const handleRenameCancel = () => {
+    if (renameSubmitting) {
+      return;
+    }
+    setRenameTargetId(null);
+    setRenameValue('');
+  };
+
+  const handleRenameSubmit = async () => {
+    const trimmed = renameValue.trim();
+    if (!trimmed) {
+      message.warning('标题不能为空');
+      return;
+    }
+    if (!renameTargetId || !requireAuth()) {
+      return;
+    }
+    setRenameSubmitting(true);
+    try {
+      await sessionApi.update(accessToken, renameTargetId, { title: trimmed });
+      onSessionsChange((prev = []) =>
+        prev.map((session) => {
+          const sessionId = session.session_id || session.id;
+          return sessionId === renameTargetId ? { ...session, title: trimmed } : session;
+        })
+      );
+      message.success('会话标题已更新');
+      setRenameTargetId(null);
+      setRenameValue('');
+    } catch (error) {
+      message.error(error.message || '更新失败');
+    } finally {
+      setRenameSubmitting(false);
+    }
+  };
+
   const isActiveRoute = (path) => {
+    if (!path) {
+      return false;
+    }
     return location.pathname === path || location.pathname.startsWith(path + '/');
   };
 
@@ -181,39 +308,91 @@ const Sidebar = ({ isCollapsed, onToggleCollapse, onLogout, isLoggedIn, onShowLo
     </div>
   );
 
-  const renderDialogueItem = (dialogue) => (
-    <div
-      key={dialogue.id}
-      className={styles.dialogueItem}
-      onClick={() => handleDialogueClick(dialogue)}
-    >
-      <img src={archiveIcon} alt="Dialogue" className={styles.dialogueIcon} />
-      <span className={styles.dialogueTitle}>{dialogue.title}</span>
-      <Popover
-        content={renderDialogueMenuContent(dialogue.id)}
-        trigger="click"
-        placement="rightTop"
-        styles={{
-          container:{
-            padding:4
-          }
-        }}
-        open={dialogueMenuOpen[dialogue.id]}
-        onOpenChange={(open) => setDialogueMenuOpen({ ...dialogueMenuOpen, [dialogue.id]: open })}
+  const renderDialogueItem = (dialogue) => {
+    const isRenaming = renameTargetId === dialogue.id;
+
+    return (
+      <div
+        key={dialogue.id}
+        className={styles.dialogueItem}
+        onClick={() => handleDialogueClick(dialogue)}
       >
-        <button
-          className={styles.dialogueMenuBtn}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <EllipsisOutlined />
-        </button>
-      </Popover>
-    </div>
-  );
+        <img src={archiveIcon} alt="Dialogue" className={styles.dialogueIcon} />
+        {isRenaming ? (
+          <div
+            className={styles.dialogueTitleEditor}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <input
+              className={styles.dialogueTitleInput}
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              onFocus={(e) => e.target.select()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleRenameSubmit();
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  handleRenameCancel();
+                }
+              }}
+              placeholder="请输入会话标题"
+              autoFocus
+            />
+            <div className={styles.dialogueRenameActions}>
+              <button
+                className={styles.dialogueSaveBtn}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRenameSubmit();
+                }}
+                disabled={renameSubmitting}
+              >
+                保存
+              </button>
+              <button
+                className={styles.dialogueCancelBtn}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRenameCancel();
+                }}
+                disabled={renameSubmitting}
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <span className={styles.dialogueTitle}>{dialogue.title}</span>
+            <Popover
+              content={renderDialogueMenuContent(dialogue.id)}
+              trigger="click"
+              placement="rightTop"
+              styles={POPOVER_STYLES}
+              open={dialogueMenuOpen[dialogue.id]}
+              onOpenChange={(open) =>
+                setDialogueMenuOpen({ ...dialogueMenuOpen, [dialogue.id]: open })
+              }
+            >
+              <button
+                className={styles.dialogueMenuBtn}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <EllipsisOutlined />
+              </button>
+            </Popover>
+          </>
+        )}
+      </div>
+    );
+  };
 
   const renderDialogueSection = () => {
-    // 未登录或折叠状态下不显示历史对话
-    if (isCollapsed || !isLoggedIn) {
+    if (isCollapsed || !isLoggedIn || !dialogues?.length) {
       return null;
     }
 
@@ -221,7 +400,7 @@ const Sidebar = ({ isCollapsed, onToggleCollapse, onLogout, isLoggedIn, onShowLo
       <div className={styles.dialogueSection}>
         <div className={styles.sectionTitle}>Historical Dialogue</div>
         <div className={styles.dialogueList}>
-          {DIALOGUE_HISTORY.map(renderDialogueItem)}
+          {dialogues.map(renderDialogueItem)}
         </div>
       </div>
     );
@@ -229,11 +408,12 @@ const Sidebar = ({ isCollapsed, onToggleCollapse, onLogout, isLoggedIn, onShowLo
 
   // ==================== 主渲染 ====================
   return (
-    <div className={`${styles.sidebar} ${isCollapsed ? styles.collapsed : ''}`}>
-      {/* 头部 */}
-      <div className={styles.sidebarHeader}>
-        <div className={styles.logo} onClick={handleLogoClick}>
-          <img src={logoImg} alt="Rice AI" className={styles.logoImage} />
+    <>
+      <div className={`${styles.sidebar} ${isCollapsed ? styles.collapsed : ''}`}>
+        {/* 头部 */}
+        <div className={styles.sidebarHeader}>
+          <div className={styles.logo} onClick={handleLogoClick}>
+            <img src={logoImg} alt="Rice AI" className={styles.logoImage} />
           {!isCollapsed && <span className={styles.logoText}>Rice AI</span>}
         </div>
         {!isCollapsed && (
@@ -256,11 +436,7 @@ const Sidebar = ({ isCollapsed, onToggleCollapse, onLogout, isLoggedIn, onShowLo
                 placement="rightTop"
                 open={toolsMenuOpen}
                 onOpenChange={setToolsMenuOpen}
-                styles={{
-                  container: {
-                    padding: 4
-                  }
-                }}
+                styles={POPOVER_STYLES}
               >
                 <div
                   className={`${styles.navItem} ${isActiveRoute(item.path) ? styles.active : ''}`}
@@ -300,11 +476,7 @@ const Sidebar = ({ isCollapsed, onToggleCollapse, onLogout, isLoggedIn, onShowLo
             placement={isCollapsed ? 'rightBottom' : 'topLeft'}
             open={userMenuOpen}
             onOpenChange={setUserMenuOpen}
-            styles={{
-              container:{
-                padding:4
-              }
-            }}
+            styles={POPOVER_STYLES}
           >
             <div className={styles.userProfile}>
               <div className={styles.userAvatar}>
@@ -312,8 +484,8 @@ const Sidebar = ({ isCollapsed, onToggleCollapse, onLogout, isLoggedIn, onShowLo
               </div>
               {!isCollapsed && (
                 <div className={styles.userInfo}>
-                  <div className={styles.userName}>MOMO</div>
-                  <div className={styles.userEmail}>momo@example.com</div>
+                  <div className={styles.userName}>{user?.username || 'User'}</div>
+                  <div className={styles.userEmail}>{user?.email || '未绑定邮箱'}</div>
                 </div>
               )}
             </div>
@@ -325,6 +497,7 @@ const Sidebar = ({ isCollapsed, onToggleCollapse, onLogout, isLoggedIn, onShowLo
         )}
       </div>
     </div>
+    </>
   );
 };
 

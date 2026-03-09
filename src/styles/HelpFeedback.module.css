@@ -8,14 +8,14 @@
 .title {
   font-size: 32px;
   font-weight: 600;
-  color: #333;
+  color: var(--color-text-primary);
   margin-bottom: 12px;
   text-align: center;
 }
 
 .subtitle {
   font-size: 16px;
-  color: #666;
+  color: var(--color-text-secondary);
   text-align: center;
   margin-bottom: 48px;
 }
@@ -39,13 +39,13 @@
 .sectionTitle {
   font-size: 24px;
   font-weight: 600;
-  color: #333;
+  color: var(--color-text-primary);
   margin: 0;
 }
 
 .sectionDesc {
   font-size: 14px;
-  color: #666;
+  color: var(--color-text-secondary);
   margin-bottom: 24px;
 }
 
@@ -56,7 +56,7 @@
 }
 
 .card {
-  background: #ffffff;
+  background: var(--color-surface);
   border-radius: 8px;
   padding: 24px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -71,13 +71,13 @@
 .cardTitle {
   font-size: 18px;
   font-weight: 600;
-  color: #333;
+  color: var(--color-text-primary);
   margin-bottom: 8px;
 }
 
 .cardDesc {
   font-size: 14px;
-  color: #666;
+  color: var(--color-text-secondary);
   margin-bottom: 16px;
 }
 
@@ -103,7 +103,7 @@
 }
 
 .guideItem {
-  background: #ffffff;
+  background: var(--color-surface);
   border-radius: 8px;
   padding: 20px 24px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -125,13 +125,13 @@
 .guideTitle {
   font-size: 16px;
   font-weight: 600;
-  color: #333;
+  color: var(--color-text-primary);
   margin-bottom: 4px;
 }
 
 .guideDesc {
   font-size: 14px;
-  color: #666;
+  color: var(--color-text-secondary);
   margin: 0;
 }
 
@@ -157,7 +157,7 @@
 }
 
 .faqItem {
-  background: #ffffff;
+  background: var(--color-surface);
   border-radius: 8px;
   padding: 20px 24px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -167,7 +167,7 @@
 .faqQuestion {
   font-size: 16px;
   font-weight: 600;
-  color: #333;
+  color: var(--color-text-primary);
   cursor: pointer;
   list-style: none;
   user-select: none;
@@ -191,14 +191,14 @@
 
 .faqAnswer {
   font-size: 14px;
-  color: #666;
+  color: var(--color-text-secondary);
   margin-top: 12px;
   padding-left: 24px;
   line-height: 1.6;
 }
 
 .feedbackForm {
-  background: #ffffff;
+  background: var(--color-surface);
   border-radius: 8px;
   padding: 24px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -207,7 +207,7 @@
 .feedbackTextarea {
   width: 100%;
   padding: 12px 16px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   font-size: 14px;
   font-family: inherit;
@@ -224,7 +224,7 @@
 .submitBtn {
   padding: 10px 24px;
   background: #1a73e8;
-  color: #ffffff;
+  color: var(--color-on-primary);
   border: none;
   border-radius: 6px;
   font-size: 14px;

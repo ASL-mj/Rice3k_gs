@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { PlusOutlined } from '@ant-design/icons';
 import styles from '../styles/Header.module.css';
 import { Select } from 'antd';
 
-const Header = () => {
+const Header = ({ models = [], selectedModelId = '', onSelectModel, sessions = [] }) => {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -30,14 +30,11 @@ const Header = () => {
     // 处理对话详情页
     if (path.startsWith('/chat/')) {
       const dialogueId = path.split('/')[2];
-      const dialogueTitles = {
-        '1': '如何优化React应用性能？',
-        '2': '解释一下JavaScript闭包的概念',
-        '3': '数据库索引的最佳实践',
-        '4': 'RESTful API设计原则',
-        '5': 'Docker容器化部署指南',
-      };
-      return dialogueTitles[dialogueId] || 'New Dialogue';
+      if (!dialogueId) {
+        return 'New Dialogue';
+      }
+      const matched = sessions.find((session) => session?.session_id === dialogueId);
+      return matched?.title || 'New Dialogue';
     }
     
     return titles[path] || 'Rice AI';
@@ -50,6 +47,19 @@ const Header = () => {
     navigate('/chat');
   };
 
+  const modelOptions = useMemo(
+    () =>
+      (models || []).map((model) => ({
+        value: model.id,
+        label: model.display_name || model.id,
+      })),
+    [models]
+  );
+
+  const handleModelChange = (value) => {
+    onSelectModel?.(value);
+  };
+
   return (
     <header className={styles.header}>
       <div className={styles.headerLeft}>
@@ -58,13 +68,13 @@ const Header = () => {
       {isDialoguePage && (
         <div className={styles.headerRight}>
           <Select
-            defaultValue="deep-seek"
-            style={{ width: 120 }}
-            options={[
-              { value: 'deep-seek', label: 'Deepseek' },
-              { value: 'gpt-4', label: 'GPT-4' },
-              { value: 'claude', label: 'Claude' },
-            ]}
+            className={styles.modelSelect}
+            placeholder="选择模型"
+            value={modelOptions.length ? selectedModelId || undefined : undefined}
+            onChange={handleModelChange}
+            options={modelOptions}
+            disabled={!modelOptions.length}
+            popupMatchSelectWidth={false}
           />
           <button className={styles.newChatBtn} onClick={handleNewChat}>
             <PlusOutlined />

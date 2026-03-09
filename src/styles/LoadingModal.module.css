@@ -1,0 +1,30 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(2px);
+}
+
+.modal {
+  background: var(--color-surface, #fff);
+  padding: 32px 48px;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  text-align: center;
+  min-width: 320px;
+}
+
+.spinner {
+  font-size: 32px;
+  color: #1a73e8;
+  margin-bottom: 16px;
+}
+
+.text {
+  font-size: 15px;
+  color: var(--color-text-primary, #1f1f1f);
+}

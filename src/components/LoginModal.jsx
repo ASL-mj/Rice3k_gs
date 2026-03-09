@@ -1,205 +1,384 @@
-import React, { useState } from 'react';
-import { UserOutlined, LockOutlined, SafetyOutlined } from '@ant-design/icons';
+import React, { useEffect, useMemo, useState } from 'react';
+import { UserOutlined, LockOutlined, SafetyOutlined, MailOutlined } from '@ant-design/icons';
+import { message } from 'antd';
 import styles from '../styles/LoginModal.module.css';
 import logoImg from '../assets/images/logo.png';
+import { authApi } from '../utils/api';
 
-const LoginModal = ({ isOpen, onClose, onLogin }) => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [captcha, setCaptcha] = useState('');
-  const [showRegister, setShowRegister] = useState(false);
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
+const sections = {
+  login: 'login',
+  register: 'register',
+  reset: 'reset',
+};
 
-  if (!isOpen) return null;
+const initialErrors = {
+  username: '',
+  password: '',
+  email: '',
+  captcha: '',
+  global: '',
+};
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (username && password && captcha) {
-      onLogin({ username, password });
+const LoginModal = ({ isOpen = false, onClose = () => {}, onAuthSuccess = () => {} }) => {
+  const [activeSection, setActiveSection] = useState(sections.login);
+  const [formValues, setFormValues] = useState({
+    username: '',
+    password: '',
+    email: '',
+    confirmPassword: '',
+    captcha: '',
+  });
+  const [errors, setErrors] = useState(initialErrors);
+  const [loading, setLoading] = useState(false);
+  const [captcha, setCaptcha] = useState(null);
+  const [captchaLoading, setCaptchaLoading] = useState(false);
+
+  const isLogin = activeSection === sections.login;
+  const isRegister = activeSection === sections.register;
+  const isReset = activeSection === sections.reset;
+
+  const modalTitle = useMemo(() => {
+    if (isRegister) return 'Create Account';
+    if (isReset) return 'Reset Password';
+    return '用户登录';
+  }, [isRegister, isReset]);
+
+  const clearForm = () => {
+    setFormValues({
+      username: '',
+      password: '',
+      email: '',
+      confirmPassword: '',
+      captcha: '',
+    });
+    setErrors(initialErrors);
+  };
+
+  const fetchCaptcha = async () => {
+    setCaptchaLoading(true);
+    try {
+      const result = await authApi.captcha();
+      setCaptcha(result);
+    } catch (error) {
+      console.error('获取验证码失败', error);
+      message.error(error.message || '获取验证码失败');
+    } finally {
+      setCaptchaLoading(false);
     }
   };
 
-  const handleOverlayClick = (e) => {
-    if (e.target === e.currentTarget) {
-      onClose();
+  useEffect(() => {
+    if (isOpen) {
+      fetchCaptcha();
+    } else {
+      clearForm();
+      setCaptcha(null);
+      setActiveSection(sections.login);
+    }
+  }, [isOpen]);
+
+  const updateField = (field, value) => {
+    setFormValues((prev) => ({ ...prev, [field]: value }));
+    setErrors((prev) => ({ ...prev, [field]: '', global: '' }));
+  };
+
+  const validateLogin = () => {
+    const nextErrors = { ...initialErrors };
+    if (!formValues.username.trim()) nextErrors.username = '请输入用户名';
+    if (!formValues.password.trim()) nextErrors.password = '请输入密码';
+    if (!formValues.captcha.trim()) nextErrors.captcha = '请输入验证码';
+    if (!captcha?.captcha_id) nextErrors.captcha = nextErrors.captcha || '请获取验证码';
+    setErrors(nextErrors);
+    return !nextErrors.username && !nextErrors.password && !nextErrors.captcha;
+  };
+
+  const validateRegister = () => {
+    const nextErrors = { ...initialErrors };
+    if (!formValues.username.trim()) nextErrors.username = '请输入用户名';
+    if (!formValues.email.trim()) nextErrors.email = '请输入邮箱';
+    if (!formValues.password.trim()) nextErrors.password = '请输入密码';
+    if (formValues.password !== formValues.confirmPassword) nextErrors.password = '两次密码不一致';
+    setErrors(nextErrors);
+    return !nextErrors.username && !nextErrors.email && !nextErrors.password;
+  };
+
+  const validateReset = () => {
+    const nextErrors = { ...initialErrors };
+    if (!formValues.username.trim()) nextErrors.username = '请输入用户名';
+    if (!formValues.email.trim()) nextErrors.email = '请输入邮箱';
+    if (!formValues.password.trim()) nextErrors.password = '请输入新密码';
+    setErrors(nextErrors);
+    return !nextErrors.username && !nextErrors.email && !nextErrors.password;
+  };
+
+  const handleLoginSubmit = async (event) => {
+    event.preventDefault();
+    if (!validateLogin() || loading) return;
+    setLoading(true);
+    try {
+      const payload = {
+        username: formValues.username.trim(),
+        password: formValues.password,
+        captcha_id: captcha?.captcha_id,
+        captcha_code: formValues.captcha.trim(),
+      };
+      const result = await authApi.login(payload);
+      try {
+        await onAuthSuccess(result);
+        message.success('登录成功');
+        onClose();
+      } catch (postLoginError) {
+        console.error('登录后初始化失败', postLoginError);
+        message.error(postLoginError?.message || '登录成功但初始化失败，请重试');
+        return;
+      }
+    } catch (error) {
+      console.error('登录失败', error);
+      setErrors((prev) => ({
+        ...prev,
+        global: error.message || '登录失败',
+        password: error.status === 401 ? '用户名或密码错误' : prev.password,
+        captcha: error.message?.includes('验证码') ? error.message : prev.captcha,
+      }));
+      fetchCaptcha();
+      setFormValues((prev) => ({ ...prev, captcha: '' }));
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (showRegister) {
-    return (
-      <div className={styles.overlay} onClick={handleOverlayClick}>
-        <div className={styles.modal}>
-          <button className={styles.closeBtn} onClick={onClose}>×</button>
-          
-          <div className={styles.logoSection}>
-            <img src={logoImg} alt="Rice AI" className={styles.logo} />
-            <h2 className={styles.title}>Create Account</h2>
-          </div>
+  const handleRegisterSubmit = async (event) => {
+    event.preventDefault();
+    if (!validateRegister() || loading) return;
+    setLoading(true);
+    try {
+      const payload = {
+        username: formValues.username.trim(),
+        email: formValues.email.trim(),
+        password: formValues.password,
+      };
+      await authApi.register(payload);
+      message.success('注册成功，请登录');
+      setActiveSection(sections.login);
+      setFormValues((prev) => ({ ...prev, password: '', confirmPassword: '' }));
+    } catch (error) {
+      console.error('注册失败', error);
+      setErrors((prev) => ({
+        ...prev,
+        global: error.message || '注册失败',
+      }));
+    } finally {
+      setLoading(false);
+    }
+  };
 
-          <form className={styles.form} onSubmit={handleSubmit}>
-            <div className={styles.inputGroup}>
-              <UserOutlined className={styles.inputIcon} />
-              <input
-                type="text"
-                placeholder="Username"
-                className={styles.input}
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-              />
-            </div>
+  const handleResetSubmit = async (event) => {
+    event.preventDefault();
+    if (!validateReset() || loading) return;
+    setLoading(true);
+    try {
+      await authApi.resetPassword({
+        username: formValues.username.trim(),
+        email: formValues.email.trim(),
+        new_password: formValues.password,
+      });
+      message.success('密码重置成功，请使用新密码登录');
+      setActiveSection(sections.login);
+      setFormValues((prev) => ({ ...prev, password: '', confirmPassword: '' }));
+    } catch (error) {
+      console.error('重置密码失败', error);
+      setErrors((prev) => ({
+        ...prev,
+        global: error.message || '重置密码失败',
+      }));
+    } finally {
+      setLoading(false);
+    }
+  };
 
-            <div className={styles.inputGroup}>
-              <UserOutlined className={styles.inputIcon} />
-              <input
-                type="email"
-                placeholder="Email"
-                className={styles.input}
-              />
-            </div>
-
-            <div className={styles.inputGroup}>
-              <LockOutlined className={styles.inputIcon} />
-              <input
-                type="password"
-                placeholder="Password"
-                className={styles.input}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-
-            <div className={styles.inputGroup}>
-              <LockOutlined className={styles.inputIcon} />
-              <input
-                type="password"
-                placeholder="Confirm Password"
-                className={styles.input}
-              />
-            </div>
-
-            <button type="submit" className={styles.submitBtn}>
-              Register
-            </button>
-          </form>
-
-          <div className={styles.footer}>
-            <span className={styles.footerText}>Already have an account?</span>
-            <button 
-              className={styles.linkBtn}
-              onClick={() => setShowRegister(false)}
-            >
-              Login
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (showForgotPassword) {
-    return (
-      <div className={styles.overlay} onClick={handleOverlayClick}>
-        <div className={styles.modal}>
-          <button className={styles.closeBtn} onClick={onClose}>×</button>
-          
-          <div className={styles.logoSection}>
-            <img src={logoImg} alt="Rice AI" className={styles.logo} />
-            <h2 className={styles.title}>Reset Password</h2>
-          </div>
-
-          <form className={styles.form} onSubmit={handleSubmit}>
-            <div className={styles.inputGroup}>
-              <UserOutlined className={styles.inputIcon} />
-              <input
-                type="email"
-                placeholder="Email"
-                className={styles.input}
-              />
-            </div>
-
-            <button type="submit" className={styles.submitBtn}>
-              Send Reset Link
-            </button>
-          </form>
-
-          <div className={styles.footer}>
-            <span className={styles.footerText}>Remember your password?</span>
-            <button 
-              className={styles.linkBtn}
-              onClick={() => setShowForgotPassword(false)}
-            >
-              Login
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+  if (!isOpen) {
+    return null;
   }
 
   return (
-    <div className={styles.overlay} onClick={handleOverlayClick}>
+    <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className={styles.modal}>
         <button className={styles.closeBtn} onClick={onClose}>×</button>
-        
         <div className={styles.logoSection}>
           <img src={logoImg} alt="Rice AI" className={styles.logo} />
-          <h2 className={styles.title}>Welcome Back</h2>
+          <h2 className={styles.title}>{modalTitle}</h2>
         </div>
-
-        <form className={styles.form} onSubmit={handleSubmit}>
-          <div className={styles.inputGroup}>
-            <UserOutlined className={styles.inputIcon} />
-            <input
-              type="text"
-              placeholder="Username"
-              className={styles.input}
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-            />
+        {isLogin && (
+          <form className={styles.form} onSubmit={handleLoginSubmit}>
+            <div className={`${styles.inputGroup} ${errors.username ? styles.errorGroup : ''}`}>
+              <UserOutlined className={styles.inputIcon} />
+              <input
+                type="text"
+                placeholder="请输入账号"
+                className={styles.input}
+                value={formValues.username}
+                onChange={(e) => updateField('username', e.target.value)}
+              />
+            </div>
+            {errors.username && <p className={styles.errorText}>{errors.username}</p>}
+            <div className={`${styles.inputGroup} ${errors.password ? styles.errorGroup : ''}`}>
+              <LockOutlined className={styles.inputIcon} />
+              <input
+                type="password"
+                placeholder="请输入密码"
+                className={styles.input}
+                value={formValues.password}
+                onChange={(e) => updateField('password', e.target.value)}
+              />
+            </div>
+            {errors.password && <p className={styles.errorText}>{errors.password}</p>}
+          <div className={styles.captchaRow}>
+            <div className={`${styles.inputGroup} ${errors.captcha ? styles.errorGroup : ''}`}>
+              <SafetyOutlined className={styles.inputIcon} />
+              <input
+                type="text"
+                placeholder="请输入验证码"
+                className={styles.input}
+                value={formValues.captcha}
+                onChange={(e) => updateField('captcha', e.target.value)}
+              />
+            </div>
+            <button
+              type="button"
+              className={styles.captchaPreview}
+              onClick={fetchCaptcha}
+              disabled={captchaLoading}
+            >
+              {captcha?.captcha_image ? (
+                <img src={captcha.captcha_image} alt="验证码" />
+              ) : (
+                <span className={styles.captchaPlaceholder}>
+                  {captchaLoading ? '生成中…' : '点击获取'}
+                </span>
+              )}
+            </button>
           </div>
-
-          <div className={styles.inputGroup}>
-            <LockOutlined className={styles.inputIcon} />
-            <input
-              type="password"
-              placeholder="Password"
-              className={styles.input}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-
-          <div className={styles.inputGroup}>
-            <SafetyOutlined className={styles.inputIcon} />
-            <input
-              type="text"
-              placeholder="Captcha"
-              className={styles.input}
-              value={captcha}
-              onChange={(e) => setCaptcha(e.target.value)}
-            />
-            <div className={styles.captchaBox}>ABCD</div>
-          </div>
-
-          <button type="submit" className={styles.submitBtn}>
-            Login
-          </button>
-        </form>
-
+          {errors.captcha && <p className={styles.errorText}>{errors.captcha}</p>}
+            {errors.global && <div className={styles.alertError}>{errors.global}</div>}
+            <button type="submit" className={styles.submitBtn} disabled={loading}>
+              {loading ? '登录中...' : '登录'}
+            </button>
+          </form>
+        )}
+        {isRegister && (
+          <form className={styles.form} onSubmit={handleRegisterSubmit}>
+            <div className={`${styles.inputGroup} ${errors.username ? styles.errorGroup : ''}`}>
+              <UserOutlined className={styles.inputIcon} />
+              <input
+                type="text"
+                placeholder="请输入用户名"
+                className={styles.input}
+                value={formValues.username}
+                onChange={(e) => updateField('username', e.target.value)}
+              />
+            </div>
+            {errors.username && <p className={styles.errorText}>{errors.username}</p>}
+            <div className={`${styles.inputGroup} ${errors.email ? styles.errorGroup : ''}`}>
+              <MailOutlined className={styles.inputIcon} />
+              <input
+                type="email"
+                placeholder="请输入邮箱"
+                className={styles.input}
+                value={formValues.email}
+                onChange={(e) => updateField('email', e.target.value)}
+              />
+            </div>
+            {errors.email && <p className={styles.errorText}>{errors.email}</p>}
+            <div className={`${styles.inputGroup} ${errors.password ? styles.errorGroup : ''}`}>
+              <LockOutlined className={styles.inputIcon} />
+              <input
+                type="password"
+                placeholder="请输入密码"
+                className={styles.input}
+                value={formValues.password}
+                onChange={(e) => updateField('password', e.target.value)}
+              />
+            </div>
+            <div className={`${styles.inputGroup} ${errors.password ? styles.errorGroup : ''}`}>
+              <LockOutlined className={styles.inputIcon} />
+              <input
+                type="password"
+                placeholder="请再次输入密码"
+                className={styles.input}
+                value={formValues.confirmPassword}
+                onChange={(e) => updateField('confirmPassword', e.target.value)}
+              />
+            </div>
+            {errors.password && <p className={styles.errorText}>{errors.password}</p>}
+            {errors.global && <div className={styles.alertError}>{errors.global}</div>}
+            <button type="submit" className={styles.submitBtn} disabled={loading}>
+              {loading ? '提交中...' : '注册'}
+            </button>
+          </form>
+        )}
+        {isReset && (
+          <form className={styles.form} onSubmit={handleResetSubmit}>
+            <div className={`${styles.inputGroup} ${errors.username ? styles.errorGroup : ''}`}>
+              <UserOutlined className={styles.inputIcon} />
+              <input
+                type="text"
+                placeholder="请输入用户名"
+                className={styles.input}
+                value={formValues.username}
+                onChange={(e) => updateField('username', e.target.value)}
+              />
+            </div>
+            {errors.username && <p className={styles.errorText}>{errors.username}</p>}
+            <div className={`${styles.inputGroup} ${errors.email ? styles.errorGroup : ''}`}>
+              <MailOutlined className={styles.inputIcon} />
+              <input
+                type="email"
+                placeholder="请输入邮箱"
+                className={styles.input}
+                value={formValues.email}
+                onChange={(e) => updateField('email', e.target.value)}
+              />
+            </div>
+            {errors.email && <p className={styles.errorText}>{errors.email}</p>}
+            <div className={`${styles.inputGroup} ${errors.password ? styles.errorGroup : ''}`}>
+              <LockOutlined className={styles.inputIcon} />
+              <input
+                type="password"
+                placeholder="请输入新密码"
+                className={styles.input}
+                value={formValues.password}
+                onChange={(e) => updateField('password', e.target.value)}
+              />
+            </div>
+            {errors.password && <p className={styles.errorText}>{errors.password}</p>}
+            {errors.global && <div className={styles.alertError}>{errors.global}</div>}
+            <button type="submit" className={styles.submitBtn} disabled={loading}>
+              {loading ? '提交中...' : '重置密码'}
+            </button>
+          </form>
+        )}
         <div className={styles.footer}>
-          <button 
-            className={styles.linkBtn}
-            onClick={() => setShowRegister(true)}
-          >
-            Register
-          </button>
-          <span className={styles.divider}>|</span>
-          <button 
-            className={styles.linkBtn}
-            onClick={() => setShowForgotPassword(true)}
-          >
-            Forgot Password?
-          </button>
+          {isLogin && (
+            <>
+              <button className={styles.linkBtn} onClick={() => setActiveSection(sections.register)}>
+                注册新用户
+              </button>
+              <span className={styles.divider}>|</span>
+              <button className={styles.linkBtn} onClick={() => setActiveSection(sections.reset)}>
+                忘记登录密码？
+              </button>
+            </>
+          )}
+          {isRegister && (
+            <button className={styles.linkBtn} onClick={() => setActiveSection(sections.login)}>
+              已有账号？立即登录
+            </button>
+          )}
+          {isReset && (
+            <button className={styles.linkBtn} onClick={() => setActiveSection(sections.login)}>
+              想起密码？返回登录
+            </button>
+          )}
         </div>
       </div>
     </div>

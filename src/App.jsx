@@ -1,14 +1,51 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import LoginModal from './components/LoginModal';
+import LoadingModal from './components/LoadingModal';
 import ChatPage from './pages/ChatPage';
 import TaskManagement from './pages/TaskManagement';
 import ReportPage from './pages/ReportPage';
 import AccountSettings from './pages/AccountSettings';
 import HelpFeedback from './pages/HelpFeedback';
+import { authApi, loadInitialAppData } from './utils/api';
 import styles from './styles/App.module.css';
+
+const AUTH_STORAGE_KEY = 'rice3k-auth-state';
+const emptyAuthState = { tokens: null, user: null };
+
+const readStoredAuth = () => {
+  if (typeof window === 'undefined') {
+    return emptyAuthState;
+  }
+  try {
+    const cached = localStorage.getItem(AUTH_STORAGE_KEY);
+    return cached ? JSON.parse(cached) : emptyAuthState;
+  } catch (error) {
+    console.warn('Failed to parse cached auth state', error);
+    return emptyAuthState;
+  }
+};
+
+const syncAuthToStorage = (state) => {
+  if (typeof window === 'undefined') return;
+  if (state?.tokens?.accessToken) {
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(state));
+  } else {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+  }
+};
+
+const mapSessionsToDialogues = (sessions = []) =>
+  sessions.map((session, index) => ({
+    id: session?.session_id || session?.id || `session-${index}`,
+    title:
+      session?.title ||
+      (session?.metadata && (session.metadata.title || session.metadata.name)) ||
+      session?.session_id ||
+      `会话 ${index + 1}`,
+  }));
 
 // 路由保护组件
 const ProtectedRoute = ({ children, isLoggedIn }) => {
@@ -23,33 +60,174 @@ const ProtectedRoute = ({ children, isLoggedIn }) => {
 };
 
 function App() {
+  const initialAuth = useMemo(() => readStoredAuth(), []);
+  const [authState, setAuthState] = useState(initialAuth);
+  const [shouldBootstrapStoredSession, setShouldBootstrapStoredSession] = useState(() =>
+    Boolean(initialAuth?.tokens?.accessToken)
+  );
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  // 从 localStorage 读取登录状态，默认为 true
-  const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    const saved = localStorage.getItem('isLoggedIn');
-    return saved !== null ? JSON.parse(saved) : true;
+  const [showLoginModal, setShowLoginModal] = useState(() => !Boolean(initialAuth?.tokens?.accessToken));
+  const [isLoadingInitialData, setIsLoadingInitialData] = useState(false);
+  const [initialData, setInitialData] = useState({
+    sessions: [],
+    models: [],
+    defaultModel: null,
   });
-  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [selectedModelId, setSelectedModelId] = useState('');
+  const accessToken = authState?.tokens?.accessToken || null;
+
+  const updateAuthState = useCallback(
+    (updater) => {
+      setAuthState((prev) => {
+        const next = typeof updater === 'function' ? updater(prev) : updater;
+        const normalized = next ? { ...emptyAuthState, ...next } : { ...emptyAuthState };
+        syncAuthToStorage(normalized);
+        return normalized;
+      });
+    },
+    [setAuthState]
+  );
+
+  const isLoggedIn = Boolean(authState?.tokens?.accessToken && authState?.user);
+  const dialogueHistory = useMemo(() => mapSessionsToDialogues(initialData.sessions), [initialData.sessions]);
+
+  const handleSessionsChange = useCallback(
+    (updater) => {
+      setInitialData((prev) => {
+        const previousSessions = prev.sessions || [];
+        const nextSessions =
+          typeof updater === 'function' ? updater(previousSessions) : updater || [];
+        return {
+          ...prev,
+          sessions: nextSessions,
+        };
+      });
+    },
+    [setInitialData]
+  );
 
   const handleToggleSidebar = () => {
-    setIsSidebarCollapsed(!isSidebarCollapsed);
+    setIsSidebarCollapsed((prev) => !prev);
   };
 
-  const handleLogin = (credentials) => {
-    console.log('Login with:', credentials);
-    setIsLoggedIn(true);
-    localStorage.setItem('isLoggedIn', 'true');
+  useEffect(() => {
+    const availableModels = initialData.models || [];
+    if (!availableModels.length) {
+      if (selectedModelId !== '') {
+        setSelectedModelId('');
+      }
+      return;
+    }
+    const exists = availableModels.some((model) => model.id === selectedModelId);
+    if (exists) {
+      return;
+    }
+    const fallback =
+      (initialData.defaultModel &&
+        availableModels.some((model) => model.id === initialData.defaultModel) &&
+        initialData.defaultModel) ||
+      availableModels[0].id;
+    setSelectedModelId(fallback);
+  }, [initialData.models, initialData.defaultModel, selectedModelId]);
+
+  const handleAuthSuccess = async (result) => {
+    const tokens = {
+      accessToken: result.access_token,
+      refreshToken: result.refresh_token,
+    };
+    setShouldBootstrapStoredSession(false);
+    updateAuthState(() => ({
+      tokens,
+      user: result.user,
+    }));
+    setIsLoadingInitialData(true);
+    try {
+      const data = await loadInitialAppData(tokens.accessToken);
+      setInitialData({
+        sessions: data.sessions,
+        models: data.models,
+        defaultModel: data.defaultModel,
+      });
+      updateAuthState((prev) => ({
+        ...prev,
+        user: data.user || prev.user,
+      }));
+    } catch (error) {
+      updateAuthState(emptyAuthState);
+      setShowLoginModal(true);
+      throw error;
+    } finally {
+      setIsLoadingInitialData(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      if (authState.tokens?.accessToken) {
+        await authApi.logout(authState.tokens.accessToken);
+      }
+    } catch (error) {
+      console.warn('Logout failed', error);
+    } finally {
+      setInitialData({ sessions: [], models: [], defaultModel: null });
+      updateAuthState(emptyAuthState);
+      setShowLoginModal(true);
+      setShouldBootstrapStoredSession(false);
+    }
+  };
+
+  const handleShowLoginModal = () => setShowLoginModal(true);
+
+  useEffect(() => {
+    if (!shouldBootstrapStoredSession || !authState.tokens?.accessToken) {
+      return;
+    }
+    let cancelled = false;
+    setIsLoadingInitialData(true);
+    loadInitialAppData(authState.tokens.accessToken)
+      .then((data) => {
+        if (cancelled) return;
+        setInitialData({
+          sessions: data.sessions,
+          models: data.models,
+          defaultModel: data.defaultModel,
+        });
+        updateAuthState((prev) => ({
+          ...prev,
+          user: data.user || prev.user,
+        }));
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error('Failed to restore previous session', error);
+        updateAuthState(emptyAuthState);
+        setShowLoginModal(true);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setIsLoadingInitialData(false);
+        setShouldBootstrapStoredSession(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [shouldBootstrapStoredSession, authState.tokens?.accessToken, updateAuthState]);
+
+  const handleLoginModalClose = () => {
     setShowLoginModal(false);
   };
 
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    localStorage.setItem('isLoggedIn', 'false');
-    // 不立即弹出登录框
+  const handleSelectModel = (value) => {
+    setSelectedModelId(value);
   };
 
-  const handleShowLoginModal = () => {
-    setShowLoginModal(true);
+  const chatPageProps = {
+    isSidebarCollapsed,
+    isLoggedIn,
+    onShowLoginModal: handleShowLoginModal,
+    selectedModelId,
+    accessToken,
+    onSessionsChange: handleSessionsChange,
   };
 
   return (
@@ -61,13 +239,23 @@ function App() {
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           onShowLoginModal={handleShowLoginModal}
+          user={authState.user}
+          dialogues={dialogueHistory}
+          sessions={initialData.sessions}
+          accessToken={accessToken}
+          onSessionsChange={handleSessionsChange}
         />
         <div className={styles.rightPanel}>
-          <Header />
+          <Header
+            models={initialData.models}
+            selectedModelId={selectedModelId}
+            onSelectModel={handleSelectModel}
+            sessions={initialData.sessions}
+          />
           <Routes>
             <Route path="/" element={<Navigate to="/chat" replace />} />
-            <Route path="/chat" element={<ChatPage isSidebarCollapsed={isSidebarCollapsed} isLoggedIn={isLoggedIn} onShowLoginModal={handleShowLoginModal} />} />
-            <Route path="/chat/:dialogueId" element={<ChatPage isSidebarCollapsed={isSidebarCollapsed} isLoggedIn={isLoggedIn} onShowLoginModal={handleShowLoginModal} />} />
+            <Route path="/chat" element={<ChatPage {...chatPageProps} />} />
+            <Route path="/chat/:dialogueId" element={<ChatPage {...chatPageProps} />} />
             <Route path="/tasks" element={<ProtectedRoute isLoggedIn={isLoggedIn}><TaskManagement /></ProtectedRoute>} />
             <Route path="/report" element={<ProtectedRoute isLoggedIn={isLoggedIn}><ReportPage /></ProtectedRoute>} />
             <Route path="/tools" element={<ProtectedRoute isLoggedIn={isLoggedIn}><Navigate to="/tools/blast" replace /></ProtectedRoute>} />
@@ -86,8 +274,12 @@ function App() {
 
         <LoginModal
           isOpen={showLoginModal}
-          onClose={() => setShowLoginModal(false)}
-          onLogin={handleLogin}
+          onClose={handleLoginModalClose}
+          onAuthSuccess={handleAuthSuccess}
+        />
+        <LoadingModal
+          visible={isLoadingInitialData}
+          message="登录成功，正在加载历史对话和模型信息..."
         />
       </div>
     </BrowserRouter>

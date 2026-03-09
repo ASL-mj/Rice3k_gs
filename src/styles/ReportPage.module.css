@@ -8,7 +8,7 @@
 .title {
   font-size: 28px;
   font-weight: 600;
-  color: #333;
+  color: var(--color-text-primary);
   margin-bottom: 24px;
 }
 
@@ -19,7 +19,7 @@
 }
 
 .reportCard {
-  background: #ffffff;
+  background: var(--color-surface);
   border-radius: 8px;
   padding: 20px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -37,13 +37,13 @@
   align-items: flex-start;
   margin-bottom: 16px;
   padding-bottom: 12px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .cardTitle {
   font-size: 18px;
   font-weight: 600;
-  color: #333;
+  color: var(--color-text-primary);
   margin: 0;
   flex: 1;
 }
@@ -56,7 +56,7 @@
   border-radius: 12px;
   font-size: 12px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--color-on-primary);
 }
 
 .cardBody {
@@ -73,13 +73,13 @@
 
 .cardLabel {
   font-size: 12px;
-  color: #999;
+  color: var(--color-text-muted);
   font-weight: 500;
 }
 
 .cardValue {
   font-size: 14px;
-  color: #333;
+  color: var(--color-text-primary);
 }
 
 .fileList {
@@ -91,10 +91,10 @@
 .fileTag {
   display: inline-block;
   padding: 2px 8px;
-  background: #f0f0f0;
+  background: var(--color-surface-alt);
   border-radius: 4px;
   font-size: 12px;
-  color: #666;
+  color: var(--color-text-secondary);
 }
 
 .stepsList {
@@ -105,21 +105,21 @@
 
 .stepBadge {
   font-size: 12px;
-  color: #666;
+  color: var(--color-text-secondary);
   padding: 4px 0;
 }
 
 .cardFooter {
   margin-top: 16px;
   padding-top: 12px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--color-border-subtle);
 }
 
 .viewBtn {
   width: 100%;
   padding: 10px;
   background: #1a73e8;
-  color: #ffffff;
+  color: var(--color-on-primary);
   border: none;
   border-radius: 6px;
   font-size: 14px;
@@ -138,11 +138,11 @@
 
 .backBtn {
   padding: 10px 20px;
-  background: #ffffff;
-  border: 1px solid #e5e5e5;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   font-size: 14px;
-  color: #666;
+  color: var(--color-text-secondary);
   cursor: pointer;
   margin-bottom: 24px;
   transition: all 0.2s;
@@ -160,7 +160,7 @@
 }
 
 .detailSection {
-  background: #ffffff;
+  background: var(--color-surface);
   border-radius: 8px;
   padding: 24px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -169,7 +169,7 @@
 .detailTitle {
   font-size: 20px;
   font-weight: 600;
-  color: #333;
+  color: var(--color-text-primary);
   margin-bottom: 20px;
 }
 
@@ -187,13 +187,13 @@
 
 .infoLabel {
   font-size: 14px;
-  color: #999;
+  color: var(--color-text-muted);
   font-weight: 500;
 }
 
 .infoValue {
   font-size: 16px;
-  color: #333;
+  color: var(--color-text-primary);
 }
 
 .stepsTimeline {
@@ -212,7 +212,7 @@
   width: 32px;
   height: 32px;
   background: #1a73e8;
-  color: #ffffff;
+  color: var(--color-on-primary);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -228,19 +228,19 @@
 .stepName {
   font-size: 16px;
   font-weight: 600;
-  color: #333;
+  color: var(--color-text-primary);
   margin-bottom: 4px;
 }
 
 .stepDescription {
   font-size: 14px;
-  color: #666;
+  color: var(--color-text-secondary);
 }
 
 .reportContent {
   font-size: 14px;
   line-height: 1.8;
-  color: #333;
+  color: var(--color-text-primary);
 }
 
 .reportContent p {

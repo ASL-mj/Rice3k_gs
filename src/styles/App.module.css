@@ -2,14 +2,14 @@
   display: flex;
   height: 100vh;
   overflow: hidden;
-  background-color: #f5f5f5;
+  background-color: var(--color-surface-alt);
 }
 
 .rightPanel {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background-color: #f8f9fa;
+  background-color: var(--color-panel);
   overflow: hidden;
   height: 100vh;
 }

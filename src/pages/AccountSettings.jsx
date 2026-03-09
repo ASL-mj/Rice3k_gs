@@ -6,20 +6,17 @@ import {
   ExclamationCircleOutlined,
   EyeOutlined,
   EyeInvisibleOutlined,
-  CheckOutlined
 } from '@ant-design/icons';
 import { message } from 'antd';
 import styles from '../styles/AccountSettings.module.css';
+import { useTheme } from '../context/ThemeContext';
 
 const AccountSettings = () => {
   const [activeSection, setActiveSection] = useState('profile');
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
-  const [codeHighlighting, setCodeHighlighting] = useState(true);
-  const [streamingResponses, setStreamingResponses] = useState(true);
-  const [theme, setTheme] = useState('system');
+  const { theme, setTheme } = useTheme();
 
   const sections = [
     { id: 'profile', label: 'Profile', icon: <UserOutlined /> },
@@ -34,10 +31,6 @@ const AccountSettings = () => {
 
   const handleUpdatePassword = () => {
     message.success('Password updated successfully');
-  };
-
-  const handleExportData = () => {
-    message.info('Exporting your data...');
   };
 
   const handleDeleteAccount = () => {
@@ -91,21 +84,6 @@ const AccountSettings = () => {
               <p className={styles.hint}>Used for account recovery and notifications</p>
             </div>
 
-            <div className={styles.formGroup}>
-              <label className={styles.label}>
-                <span>💬</span> WeChat ID
-              </label>
-              <div className={styles.inputWithIcon}>
-                <input 
-                  type="text" 
-                  className={styles.input} 
-                  defaultValue="john_doe_wechat" 
-                  placeholder="Enter WeChat ID"
-                />
-                <CheckOutlined className={styles.verifiedIcon} />
-              </div>
-              <p className={styles.verifiedText}>✓ Verified</p>
-            </div>
           </div>
         );
 
@@ -176,22 +154,6 @@ const AccountSettings = () => {
             <button className={styles.updateBtn} onClick={handleUpdatePassword}>
               <LockOutlined /> Update Password
             </button>
-
-            <div className={styles.divider}></div>
-
-            <h3 className={styles.subsectionTitle}>Two-Factor Authentication</h3>
-            <p className={styles.subsectionDesc}>Add an extra layer of security to your account</p>
-            
-            <div className={styles.settingItem}>
-              <label className={styles.switch}>
-                <input 
-                  type="checkbox" 
-                  checked={twoFactorEnabled}
-                  onChange={(e) => setTwoFactorEnabled(e.target.checked)}
-                />
-                <span className={styles.slider}></span>
-              </label>
-            </div>
           </div>
         );
 
@@ -224,83 +186,6 @@ const AccountSettings = () => {
               >
                 <span>🌙</span> Dark
               </button>
-              <button 
-                className={`${styles.themeBtn} ${theme === 'system' ? styles.active : ''}`}
-                onClick={() => setTheme('system')}
-              >
-                <span>💻</span> System
-              </button>
-            </div>
-
-            <div className={styles.divider}></div>
-
-            <h3 className={styles.subsectionTitle}>
-              <span>🔤</span> Font Size
-            </h3>
-            <div className={styles.formGroup}>
-              <select className={styles.select}>
-                <option value="small">Small</option>
-                <option value="medium" selected>Medium</option>
-                <option value="large">Large</option>
-              </select>
-              <p className={styles.hint}>Adjust the text size for better readability</p>
-            </div>
-
-            <div className={styles.divider}></div>
-
-            <h3 className={styles.subsectionTitle}>
-              <span>🌍</span> Output Language
-            </h3>
-            <div className={styles.formGroup}>
-              <select className={styles.select}>
-                <option value="en" selected>English</option>
-                <option value="zh">中文</option>
-                <option value="ja">日本語</option>
-                <option value="es">Español</option>
-              </select>
-              <p className={styles.hint}>Set the default language for AI responses</p>
-            </div>
-
-            <div className={styles.divider}></div>
-
-            <h3 className={styles.subsectionTitle}>AI Behavior</h3>
-            
-            <div className={styles.settingRow}>
-              <div>
-                <div className={styles.settingLabel}>Response Length</div>
-                <p className={styles.settingDesc}>Prefer concise or detailed responses</p>
-              </div>
-              <div className={styles.balanceIndicator}>Balanced</div>
-            </div>
-
-            <div className={styles.settingRow}>
-              <div>
-                <div className={styles.settingLabel}>Code Highlighting</div>
-                <p className={styles.settingDesc}>Enable syntax highlighting for code blocks</p>
-              </div>
-              <label className={styles.switch}>
-                <input 
-                  type="checkbox" 
-                  checked={codeHighlighting}
-                  onChange={(e) => setCodeHighlighting(e.target.checked)}
-                />
-                <span className={styles.slider}></span>
-              </label>
-            </div>
-
-            <div className={styles.settingRow}>
-              <div>
-                <div className={styles.settingLabel}>Streaming Responses</div>
-                <p className={styles.settingDesc}>Show responses as they are generated</p>
-              </div>
-              <label className={styles.switch}>
-                <input 
-                  type="checkbox" 
-                  checked={streamingResponses}
-                  onChange={(e) => setStreamingResponses(e.target.checked)}
-                />
-                <span className={styles.slider}></span>
-              </label>
             </div>
           </div>
         );
@@ -328,16 +213,6 @@ const AccountSettings = () => {
               </div>
               <button className={styles.deleteBtn} onClick={handleDeleteAccount}>
                 <span>🗑️</span> Delete Account
-              </button>
-            </div>
-
-            <div className={styles.dangerCard}>
-              <div>
-                <div className={styles.dangerLabel}>Export Data</div>
-                <p className={styles.dangerCardDesc}>Download a copy of your data before deleting your account</p>
-              </div>
-              <button className={styles.exportBtn} onClick={handleExportData}>
-                Export My Data
               </button>
             </div>
           </div>
