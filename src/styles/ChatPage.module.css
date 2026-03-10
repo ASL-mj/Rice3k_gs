@@ -167,6 +167,19 @@
   color: var(--color-on-primary);
 }
 
+.thinkingState {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.thinkingIcon {
+  font-size: 16px;
+  color: var(--color-text-secondary);
+}
+
 .reasoningPanel {
   background-color: var(--color-panel-muted);
   border-radius: 10px;

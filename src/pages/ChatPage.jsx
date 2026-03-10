@@ -15,6 +15,7 @@ import {
   FilePdfOutlined,
   FileMarkdownOutlined,
   CloseCircleOutlined,
+  LoadingOutlined,
 } from '@ant-design/icons';
 import { Popover, message, Spin } from 'antd';
 import { jsPDF } from 'jspdf';
@@ -1226,90 +1227,101 @@ const renderReasoningPanel = (
     );
   };
 
-  const renderedMessages = messages.map((message) => (
-        <div
-          key={message.id}
-          className={`${styles.message} ${
-            message.role === 'user' ? styles.userMessage : styles.assistantMessage
-          }`}
-        >
-          {message.role === 'assistant' && (
-            <div className={styles.messageAvatar}>
-              <img src={assistant} alt="assistant" />
-            </div>
-          )}
-          <div className={styles.messageContent}>
-            {renderReasoningPanel(
-              message,
-              isStreaming,
-              streamingMessageId,
-              streamingReasoning,
-              reasoningExpandedMap,
-              setReasoningExpandedMap
-            )}
-            <div className={styles.messageText}>
-              {message.role === 'user' && editingMessageId === message.id ? (
-                <div className={styles.editingContainer}>
-                  <textarea
-                    className={styles.editTextarea}
-                    value={editingDraft}
-                    onChange={(e) => setEditingDraft(e.target.value)}
-                    rows={4}
-                    placeholder="编辑你的问题..."
-                    disabled={isStreaming}
-                  />
-                  <div className={styles.editActions}>
-                    <button
-                      className={`${styles.editActionBtn} ${styles.editSaveBtn}`}
-                      onClick={handleSubmitEdit}
-                      disabled={!editingDraft.trim() || isStreaming || isCreatingSession}
-                    >
-                      保存
-                    </button>
-                    <button
-                      className={`${styles.editActionBtn} ${styles.editCancelBtn}`}
-                      onClick={handleCancelEdit}
-                      disabled={isStreaming}
-                    >
-                      取消
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  rehypePlugins={[rehypeHighlight]}
-                  components={{
-                    code(props) {
-                      const { children, className, ...rest } = props;
-                      const match = /language-(\w+)/.exec(className || '');
-                      const hasNewlines = String(children).includes('\n');
-                      const isCodeBlock = match || hasNewlines;
-                      return isCodeBlock ? (
-                        <CodeBlock className={className} {...rest}>
-                          {children}
-                        </CodeBlock>
-                      ) : (
-                        <code {...rest} className={className}>
-                          {children}
-                        </code>
-                      );
-                    },
-                  }}
-                >
-                  {message.content}
-                </ReactMarkdown>
-              )}
-            </div>
-            {renderMessageMeta(message)}
+  const renderedMessages = messages.map((message) => {
+    const isAssistantStreamingMessage =
+      message.role === 'assistant' && message.id === streamingMessageId && isStreaming;
+    const showThinkingIndicator =
+      isAssistantStreamingMessage && !(message.content && message.content.trim());
+    return (
+      <div
+        key={message.id}
+        className={`${styles.message} ${
+          message.role === 'user' ? styles.userMessage : styles.assistantMessage
+        }`}
+      >
+        {message.role === 'assistant' && (
+          <div className={styles.messageAvatar}>
+            <img src={assistant} alt="assistant" />
           </div>
-          {message.role === 'user' && (
-            <div className={styles.messageAvatar}>
-              <img src={userAvatar} alt="user" />
-            </div>
+        )}
+        <div className={styles.messageContent}>
+          {renderReasoningPanel(
+            message,
+            isStreaming,
+            streamingMessageId,
+            streamingReasoning,
+            reasoningExpandedMap,
+            setReasoningExpandedMap
           )}
+          <div className={styles.messageText}>
+            {message.role === 'user' && editingMessageId === message.id ? (
+              <div className={styles.editingContainer}>
+                <textarea
+                  className={styles.editTextarea}
+                  value={editingDraft}
+                  onChange={(e) => setEditingDraft(e.target.value)}
+                  rows={4}
+                  placeholder="编辑你的问题..."
+                  disabled={isStreaming}
+                />
+                <div className={styles.editActions}>
+                  <button
+                    className={`${styles.editActionBtn} ${styles.editSaveBtn}`}
+                    onClick={handleSubmitEdit}
+                    disabled={!editingDraft.trim() || isStreaming || isCreatingSession}
+                  >
+                    保存
+                  </button>
+                  <button
+                    className={`${styles.editActionBtn} ${styles.editCancelBtn}`}
+                    onClick={handleCancelEdit}
+                    disabled={isStreaming}
+                  >
+                    取消
+                  </button>
+                </div>
+              </div>
+            ) : showThinkingIndicator ? (
+              <div className={styles.thinkingState}>
+                <LoadingOutlined className={styles.thinkingIcon} spin />
+                <span>AI 正在思考...</span>
+              </div>
+            ) : (
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeHighlight]}
+                components={{
+                  code(props) {
+                    const { children, className, ...rest } = props;
+                    const match = /language-(\w+)/.exec(className || '');
+                    const hasNewlines = String(children).includes('\n');
+                    const isCodeBlock = match || hasNewlines;
+                    return isCodeBlock ? (
+                      <CodeBlock className={className} {...rest}>
+                        {children}
+                      </CodeBlock>
+                    ) : (
+                      <code {...rest} className={className}>
+                        {children}
+                      </code>
+                    );
+                  },
+                }}
+              >
+                {message.content || ''}
+              </ReactMarkdown>
+            )}
+          </div>
+          {renderMessageMeta(message)}
         </div>
-      ));
+        {message.role === 'user' && (
+          <div className={styles.messageAvatar}>
+            <img src={userAvatar} alt="user" />
+          </div>
+        )}
+      </div>
+    );
+  });
 
   const newChatView = (
     <div className={styles.newChatContainer}>
