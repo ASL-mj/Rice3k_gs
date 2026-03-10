@@ -163,7 +163,7 @@ const Sidebar = ({
     onShowLoginModal();
   };
 
-  const handleDialogueMenuClick = (action, dialogueId) => {
+  const handleDialogueMenuClick = async (action, dialogueId) => {
     setDialogueMenuOpen({ ...dialogueMenuOpen, [dialogueId]: false });
     const dialogue = dialogueMap.get(dialogueId);
     if (!dialogue) {
@@ -210,7 +210,26 @@ const Sidebar = ({
     }
 
     if (action === 'pin') {
-      message.info('Pin 功能开发中');
+      const targetPinned = !dialogue.pinned;
+      const successMessage = targetPinned ? '会话已置顶' : '已取消置顶';
+      try {
+        await sessionApi.update(accessToken, dialogue.id, { pinned: targetPinned });
+        onSessionsChange((prev = []) =>
+          (prev || []).map((session) => {
+            const sessionId = session.session_id || session.id;
+            if (sessionId === dialogue.id) {
+              return { ...session, pinned: targetPinned };
+            }
+            if (targetPinned && session.pinned) {
+              return { ...session, pinned: false };
+            }
+            return session;
+          })
+        );
+        message.success(successMessage);
+      } catch (error) {
+        message.error(error.message || '更新失败');
+      }
     }
   };
 
@@ -307,20 +326,32 @@ const Sidebar = ({
     </div>
   );
 
-  const renderDialogueMenuContent = (dialogueId) => (
-    <div className={styles.popoverMenu}>
-      {DIALOGUE_MENU_ACTIONS.map(action => (
-        <div
-          key={action.id}
-          className={styles.menuItem}
-          onClick={() => handleDialogueMenuClick(action.id, dialogueId)}
-        >
-          <action.icon />
-          <span>{action.label}</span>
-        </div>
-      ))}
-    </div>
-  );
+  const renderDialogueMenuContent = (dialogueId) => {
+    const dialogue = dialogueMap.get(dialogueId);
+    return (
+      <div className={styles.popoverMenu}>
+        {DIALOGUE_MENU_ACTIONS.map((action) => {
+          const Icon = action.icon;
+          const label =
+            action.id === 'pin' && dialogue
+              ? dialogue.pinned
+                ? 'Unpin'
+                : 'Pin'
+              : action.label;
+          return (
+            <div
+              key={action.id}
+              className={styles.menuItem}
+              onClick={() => handleDialogueMenuClick(action.id, dialogueId)}
+            >
+              <Icon />
+              <span>{label}</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
   const renderDialogueItem = (dialogue) => {
     const isRenaming = renameTargetId === dialogue.id;
@@ -381,7 +412,10 @@ const Sidebar = ({
           </div>
         ) : (
           <>
-            <span className={styles.dialogueTitle}>{dialogue.title}</span>
+            <div className={styles.dialogueInfo}>
+              <span className={styles.dialogueTitle}>{dialogue.title}</span>
+              {dialogue.pinned && <span className={styles.dialoguePinnedTag}>PIN</span>}
+            </div>
             <Popover
               content={renderDialogueMenuContent(dialogue.id)}
               trigger="click"

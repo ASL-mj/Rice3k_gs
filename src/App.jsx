@@ -37,6 +37,33 @@ const syncAuthToStorage = (state) => {
   }
 };
 
+const normalizeSession = (session, index) => {
+  const fallbackId = session?.session_id || session?.id || `session-${index}`;
+  return {
+    ...session,
+    session_id: session?.session_id || fallbackId,
+    pinned: Boolean(session?.pinned),
+  };
+};
+
+const getSessionTimestamp = (session) => {
+  const source = session?.last_activity || session?.created_at;
+  if (!source) return 0;
+  const value = new Date(source).getTime();
+  return Number.isNaN(value) ? 0 : value;
+};
+
+const sortSessionsByPinned = (sessions = []) =>
+  [...sessions]
+    .map(normalizeSession)
+    .sort((a, b) => {
+      const pinDiff = Number(b.pinned) - Number(a.pinned);
+      if (pinDiff !== 0) {
+        return pinDiff;
+      }
+      return getSessionTimestamp(b) - getSessionTimestamp(a);
+    });
+
 const mapSessionsToDialogues = (sessions = []) =>
   sessions.map((session, index) => ({
     id: session?.session_id || session?.id || `session-${index}`,
@@ -45,6 +72,7 @@ const mapSessionsToDialogues = (sessions = []) =>
       (session?.metadata && (session.metadata.title || session.metadata.name)) ||
       session?.session_id ||
       `会话 ${index + 1}`,
+    pinned: Boolean(session?.pinned),
   }));
 
 // 路由保护组件
@@ -95,8 +123,9 @@ function App() {
     (updater) => {
       setInitialData((prev) => {
         const previousSessions = prev.sessions || [];
-        const nextSessions =
+        const nextSessionsRaw =
           typeof updater === 'function' ? updater(previousSessions) : updater || [];
+        const nextSessions = sortSessionsByPinned(nextSessionsRaw);
         return {
           ...prev,
           sessions: nextSessions,
@@ -144,7 +173,7 @@ function App() {
     try {
       const data = await loadInitialAppData(tokens.accessToken);
       setInitialData({
-        sessions: data.sessions,
+        sessions: sortSessionsByPinned(data.sessions),
         models: data.models,
         defaultModel: data.defaultModel,
       });
@@ -188,7 +217,7 @@ function App() {
       .then((data) => {
         if (cancelled) return;
         setInitialData({
-          sessions: data.sessions,
+          sessions: sortSessionsByPinned(data.sessions),
           models: data.models,
           defaultModel: data.defaultModel,
         });

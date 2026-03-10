@@ -200,6 +200,14 @@
   transition: filter 0.2s ease;
 }
 
+.dialogueInfo {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .dialogueTitle {
   flex: 1;
   font-size: 14px;
@@ -208,6 +216,18 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.dialoguePinnedTag {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-primary, #1976d2);
+  background-color: rgba(25, 118, 210, 0.15);
+  border-radius: 999px;
+  padding: 0 6px;
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
 }
 
 .dialogueTitleEditor {
