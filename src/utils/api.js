@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:20313';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://192.168.1.226:20325';
 
 const defaultHeaders = {
   'Content-Type': 'application/json',
