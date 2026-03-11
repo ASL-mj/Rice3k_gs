@@ -126,6 +126,35 @@ export const chatApi = {
     streamRequest('/api/chat/regenerate', { method: 'POST', token, body: payload, ...options }),
 };
 
+export const tasksApi = {
+  list: (token, status) => {
+    const query = status ? `?status=${encodeURIComponent(status)}` : '';
+    return request(`/api/tasks${query}`, { token });
+  },
+  get: (token, taskId) => request(`/api/tasks/${taskId}`, { token }),
+  cancel: (token, taskId) => request(`/api/tasks/${taskId}/cancel`, { method: 'POST', token }),
+  restart: (token, taskId) => request(`/api/tasks/${taskId}/restart`, { method: 'POST', token }),
+  delete: (token, taskId) => request(`/api/tasks/${taskId}`, { method: 'DELETE', token }),
+  download: async (token, taskId) => {
+    const response = await fetch(buildUrl(`/api/tasks/${taskId}/download`), {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) {
+      const message = `Request failed with status ${response.status}`;
+      throw new Error(message);
+    }
+    return response.blob();
+  },
+};
+
+export const reportsApi = {
+  list: (token, toolName) => {
+    const query = toolName ? `?tool_name=${encodeURIComponent(toolName)}` : '';
+    return request(`/api/reports${query}`, { token });
+  },
+  get: (token, reportId) => request(`/api/reports/${reportId}`, { token }),
+};
+
 export const loadInitialAppData = async (token) => {
   const [sessionResp, modelResp, userResp] = await Promise.all([
     sessionApi.list(token),

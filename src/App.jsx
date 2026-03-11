@@ -285,8 +285,30 @@ function App() {
             <Route path="/" element={<Navigate to="/chat" replace />} />
             <Route path="/chat" element={<ChatPage {...chatPageProps} />} />
             <Route path="/chat/:dialogueId" element={<ChatPage {...chatPageProps} />} />
-            <Route path="/tasks" element={<ProtectedRoute isLoggedIn={isLoggedIn}><TaskManagement /></ProtectedRoute>} />
-            <Route path="/report" element={<ProtectedRoute isLoggedIn={isLoggedIn}><ReportPage /></ProtectedRoute>} />
+            <Route
+              path="/tasks"
+              element={
+                <ProtectedRoute isLoggedIn={isLoggedIn}>
+                  <TaskManagement
+                    accessToken={accessToken}
+                    isLoggedIn={isLoggedIn}
+                    onShowLoginModal={() => setShowLoginModal(true)}
+                  />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/report"
+              element={
+                <ProtectedRoute isLoggedIn={isLoggedIn}>
+                  <ReportPage
+                    accessToken={accessToken}
+                    isLoggedIn={isLoggedIn}
+                    onShowLoginModal={() => setShowLoginModal(true)}
+                  />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/tools" element={<ProtectedRoute isLoggedIn={isLoggedIn}><Navigate to="/tools/blast" replace /></ProtectedRoute>} />
             <Route path="/tools/blast" element={<ProtectedRoute isLoggedIn={isLoggedIn}><div style={{padding: '20px'}}>Blast Tool (Coming Soon)</div></ProtectedRoute>} />
             <Route path="/tools/gene-annotation" element={<ProtectedRoute isLoggedIn={isLoggedIn}><div style={{padding: '20px'}}>Gene Annotation Tool (Coming Soon)</div></ProtectedRoute>} />

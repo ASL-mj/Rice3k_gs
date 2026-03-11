@@ -254,7 +254,7 @@ const ChatPage = ({
         wrapped.forEach((line) => pushText(line, font, color, lineHeight));
       };
 
-      pushText('Rice AI 信息导出', headingFont, '#111827', 34);
+      pushText('Rice AI Export', headingFont, '#111827', 34);
       if (subtitle) {
         pushText(subtitle, subtitleFont, '#4b5563', 22);
         pushSpacer(6);
@@ -263,11 +263,11 @@ const ChatPage = ({
       }
       metadataLines.forEach((line) => pushText(line, metaFont, '#1f2937', 18));
       pushSpacer(16);
-      pushText('提问', sectionTitleFont, '#111827', 22);
-      pushWrapped(question || '未找到关联的提问内容', bodyFont, '#1f2329', 22);
+      pushText('Question', sectionTitleFont, '#111827', 22);
+      pushWrapped(question || 'No related question found', bodyFont, '#1f2329', 22);
       pushSpacer(12);
-      pushText('AI 回复', sectionTitleFont, '#111827', 22);
-      pushWrapped(answer || '无内容', bodyFont, '#1f2329', 22);
+      pushText('AI Response', sectionTitleFont, '#111827', 22);
+      pushWrapped(answer || 'No content', bodyFont, '#1f2329', 22);
 
       let height = PDF_CANVAS_PADDING;
       layout.forEach((item) => {
@@ -325,6 +325,25 @@ const ChatPage = ({
     URL.revokeObjectURL(url);
   }, []);
 
+  const handleDownloadAttachment = useCallback(
+    async (url, filename = 'file') => {
+      if (!url) return;
+      try {
+        const response = await fetch(url, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!response.ok) {
+          throw new Error(`Download failed: ${response.status}`);
+        }
+        const blob = await response.blob();
+        downloadBlob(blob, filename);
+      } catch (error) {
+        message.error('Download failed.');
+      }
+    },
+    [accessToken, downloadBlob]
+  );
+
   const isNewChat = !dialogueId;
   const canSend = Boolean(inputValue.trim()) && !isStreaming && !isCreatingSession;
 
@@ -372,7 +391,7 @@ const ChatPage = ({
       })
       .catch((error) => {
         if (cancelled) return;
-        message.error(error.message || '加载历史失败');
+        message.error(error.message || 'Failed to load history.');
         setMessages([]);
       })
       .finally(() => {
@@ -454,7 +473,7 @@ const ChatPage = ({
       return dialogueId;
     }
     if (!accessToken) {
-      throw new Error('请先登录后再开始对话');
+      throw new Error('Please log in before starting a conversation.');
     }
     setIsCreatingSession(true);
     try {
@@ -500,6 +519,7 @@ const ChatPage = ({
       const finalAnswer = payload.final_answer || '';
       const reasoningText = (payload.reasoning || streamingReasoningRef.current || '').trim();
       const modelId = payload.model_id;
+      const attachments = Array.isArray(payload.attachments) ? payload.attachments : [];
       updateMessageById(assistantId, (message) => ({
         ...message,
         content: finalAnswer || message.content,
@@ -507,6 +527,7 @@ const ChatPage = ({
           ...message.metadata,
           ...(reasoningText ? { reasoning: reasoningText } : {}),
           ...(modelId ? { model_id: modelId } : {}),
+          ...(attachments.length ? { attachments } : {}),
         },
         timestamp: new Date().toISOString(),
       }));
@@ -554,7 +575,7 @@ const ChatPage = ({
       } else if (eventType === 'end') {
         finalizeStream(assistantId, event.data);
       } else if (eventType === 'error') {
-        message.error(event.data || '对话失败');
+        message.error(event.data || 'Chat failed.');
         cleanupStreamingState(assistantId, { removeAssistant: true });
       }
     },
@@ -565,7 +586,7 @@ const ChatPage = ({
     async (response, assistantId) => {
       const reader = response.body?.getReader();
       if (!reader) {
-        throw new Error('无法读取流式响应');
+        throw new Error('Unable to read streaming response.');
       }
       const decoder = new TextDecoder('utf-8');
       let buffer = '';
@@ -639,7 +660,7 @@ const ChatPage = ({
           return;
         }
         cleanupStreamingState(assistantId, { removeAssistant: true });
-        message.error(error.message || '对话失败');
+        message.error(error.message || 'Chat failed.');
       } finally {
         abortControllerRef.current = null;
       }
@@ -683,7 +704,7 @@ const ChatPage = ({
         adjustTextareaHeight();
       }, 0);
     }
-    message.info('已中止本次回答');
+    message.info('This response has been stopped.');
   }, [adjustTextareaHeight, streamingMessageId, streamingUserMessageId]);
 
   const triggerRegenerateFlow = useCallback(
@@ -693,22 +714,22 @@ const ChatPage = ({
         return false;
       }
       if (isStreaming || isCreatingSession) {
-        message.warning('正在生成中，请稍候...');
+        message.warning('Generating, please wait...');
         return false;
       }
       if (!dialogueId) {
-        message.warning('当前无效的会话，无法重新生成');
+        message.warning('Current session is invalid; cannot regenerate.');
         return false;
       }
       if (!latestExchange) {
-        message.warning('没有可重新生成的问答');
+        message.warning('No Q&A available to regenerate.');
         return false;
       }
 
       const basePrompt = latestExchange.userMessage.content || '';
       const finalPrompt = (typeof newPrompt === 'string' ? newPrompt : basePrompt).trim();
       if (!finalPrompt) {
-        message.warning('消息内容不能为空');
+        message.warning('Message content cannot be empty.');
         return false;
       }
 
@@ -758,11 +779,11 @@ const ChatPage = ({
   const handleEditMessage = useCallback(
     (messageId) => {
       if (isStreaming) {
-        message.warning('请等待当前回复完成');
+        message.warning('Please wait for the current reply to finish.');
         return;
       }
       if (!latestExchange || latestExchange.userMessage.id !== messageId) {
-        message.warning('只能编辑最近的一条用户消息');
+        message.warning('You can only edit the most recent user message.');
         return;
       }
       setEditingMessageId(messageId);
@@ -780,7 +801,7 @@ const ChatPage = ({
     if (!editingMessageId) return;
     const trimmed = editingDraft.trim();
     if (!trimmed) {
-      message.warning('请输入新的问题');
+      message.warning('Please enter a new question.');
       return;
     }
     await triggerRegenerateFlow({ newPrompt: trimmed });
@@ -789,11 +810,11 @@ const ChatPage = ({
   const handleRefreshMessage = useCallback(
     async (messageId) => {
       if (isStreaming) {
-        message.warning('请等待当前回复完成');
+        message.warning('Please wait for the current reply to finish.');
         return;
       }
       if (!latestExchange || latestExchange.assistantMessage.id !== messageId) {
-        message.warning('只能重新生成最近的 AI 回复');
+        message.warning('You can only regenerate the most recent AI response.');
         return;
       }
       await triggerRegenerateFlow();
@@ -832,7 +853,7 @@ const ChatPage = ({
       scrollToBottom();
       await streamAssistantResponse(sessionId, prompt);
     } catch (error) {
-      message.error(error.message || '发送失败');
+      message.error(error.message || 'Send failed.');
     }
   };
 
@@ -883,9 +904,9 @@ const ChatPage = ({
     textarea.select();
     try {
       document.execCommand('copy');
-      message.success('信息内容已复制');
+      message.success('Content copied.');
     } catch (err) {
-      message.error('复制失败，请手动复制');
+      message.error('Copy failed. Please copy manually.');
     } finally {
       document.body.removeChild(textarea);
     }
@@ -894,13 +915,13 @@ const ChatPage = ({
   const handleCopyMessage = async (messageEntry) => {
     const textToCopy = buildCopyText(messageEntry);
     if (!textToCopy) {
-      message.warning('没有可复制的内容');
+      message.warning('No content to copy.');
       return;
     }
     try {
       if (navigator?.clipboard?.writeText) {
         await navigator.clipboard.writeText(textToCopy);
-        message.success('信息内容已复制');
+        message.success('Content copied.');
       } else {
         fallbackCopy(textToCopy);
       }
@@ -913,21 +934,21 @@ const ChatPage = ({
     (messageId) => {
       const context = buildAssistantExportContext(messageId);
       if (!context?.assistantMessage?.content) {
-        message.warning('没有可导出的内容');
+        message.warning('No content to export.');
         return;
       }
       const { assistantMessage, relatedUserMessage } = context;
       const exportTime = formatFullTimestamp(new Date());
       const metaRows = [
         {
-          label: '提问时间',
+          label: 'Question Time',
           value: formatFullTimestamp(relatedUserMessage?.timestamp) || '—',
         },
         {
-          label: '回复时间',
+          label: 'Response Time',
           value: formatFullTimestamp(assistantMessage.timestamp) || '—',
         },
-        { label: '导出时间', value: exportTime },
+        { label: 'Export Time', value: exportTime },
       ];
       const metaHtml = metaRows
         .map(
@@ -941,13 +962,13 @@ const ChatPage = ({
         .join('');
       const questionHtml = relatedUserMessage?.content
         ? markdownToHTML(relatedUserMessage.content)
-        : '<em>未找到关联的提问内容</em>';
+        : '<em>No related question found</em>';
       const answerHtml = markdownToHTML(assistantMessage.content);
       const htmlContent = `<!DOCTYPE html>
       <html>
         <head>
           <meta charset="UTF-8" />
-          <title>Rice AI 信息导出</title>
+          <title>Rice AI Export</title>
           <style>
             body { font-family: 'PingFang SC','Helvetica Neue',Arial,sans-serif; background-color: #f5f7fb; color: #1f2329; padding: 32px; }
             .card { background: #fff; border-radius: 16px; padding: 32px; max-width: 820px; margin: 0 auto; box-shadow: 0 10px 24px rgba(15,23,42,0.12); }
@@ -966,17 +987,17 @@ const ChatPage = ({
         </head>
         <body>
           <div class="card">
-            <h1>Rice AI 信息导出</h1>
-            <div class="subtitle">导出信息</div>
+            <h1>Rice AI Export</h1>
+            <div class="subtitle">Export Details</div>
             <div class="meta-block">
               ${metaHtml}
             </div>
             <div class="section">
-              <div class="section-title">提问</div>
+              <div class="section-title">Question</div>
               <div class="section-body">${questionHtml}</div>
             </div>
             <div class="section">
-              <div class="section-title">AI 回复</div>
+              <div class="section-title">AI Response</div>
               <div class="section-body">${answerHtml}</div>
             </div>
           </div>
@@ -994,25 +1015,25 @@ const ChatPage = ({
     (messageId) => {
       const context = buildAssistantExportContext(messageId);
       if (!context?.assistantMessage?.content) {
-        message.warning('没有可导出的内容');
+        message.warning('No content to export.');
         return;
       }
       const { assistantMessage, relatedUserMessage } = context;
       const metadataLines = [
-        `提问时间：${formatFullTimestamp(relatedUserMessage?.timestamp) || '—'}`,
-        `回复时间：${formatFullTimestamp(assistantMessage.timestamp) || '—'}`,
-        `导出时间：${formatFullTimestamp(new Date())}`,
+        `Question Time: ${formatFullTimestamp(relatedUserMessage?.timestamp) || '—'}`,
+        `Response Time: ${formatFullTimestamp(assistantMessage.timestamp) || '—'}`,
+        `Export Time: ${formatFullTimestamp(new Date())}`,
       ];
       const snapshot = buildPdfSnapshot({
         subtitle: '',
         metadataLines,
         question:
           markdownToPlainText(relatedUserMessage?.content || '') ||
-          '未找到关联的提问内容',
-        answer: markdownToPlainText(assistantMessage.content) || '无内容',
+          'No related question found',
+        answer: markdownToPlainText(assistantMessage.content) || 'No content',
       });
       if (!snapshot) {
-        message.error('PDF 渲染失败，请稍后重试');
+        message.error('PDF rendering failed. Please try again later.');
         return;
       }
       const doc = new jsPDF({ unit: 'pt', format: 'a4' });
@@ -1045,22 +1066,22 @@ const ChatPage = ({
     (messageId) => {
       const context = buildAssistantExportContext(messageId);
       if (!context?.assistantMessage?.content) {
-        message.warning('没有可导出的内容');
+        message.warning('No content to export.');
         return;
       }
       const { assistantMessage, relatedUserMessage } = context;
       const lines = [
-        '# Rice AI 信息导出',
+        '# Rice AI Export',
         '',
-        `- 提问时间：${formatFullTimestamp(relatedUserMessage?.timestamp) || '—'}`,
-        `- 回复时间：${formatFullTimestamp(assistantMessage.timestamp) || '—'}`,
-        `- 导出时间：${formatFullTimestamp(new Date())}`,
+        `- Question Time: ${formatFullTimestamp(relatedUserMessage?.timestamp) || '—'}`,
+        `- Response Time: ${formatFullTimestamp(assistantMessage.timestamp) || '—'}`,
+        `- Export Time: ${formatFullTimestamp(new Date())}`,
         '',
-        '## 提问',
-        relatedUserMessage?.content || '_未找到关联的提问内容_',
+        '## Question',
+        relatedUserMessage?.content || '_No related question found_',
         '',
-        '## AI 回复',
-        assistantMessage.content || '_无内容_',
+        '## AI Response',
+        assistantMessage.content || '_No content_',
         '',
       ];
       const blob = new Blob([lines.join('\n')], {
@@ -1075,11 +1096,11 @@ const ChatPage = ({
     <div className={styles.uploadMenu}>
       <div className={styles.uploadMenuItem} onClick={handleImageUpload}>
         <FileImageOutlined className={styles.uploadMenuIcon} />
-        <span>上传图片</span>
+        <span>Upload Image</span>
       </div>
       <div className={styles.uploadMenuItem} onClick={handleDocumentUpload}>
         <FileTextOutlined className={styles.uploadMenuIcon} />
-        <span>上传文档</span>
+        <span>Upload Document</span>
       </div>
     </div>
   );
@@ -1089,19 +1110,19 @@ const ChatPage = ({
       <div className={styles.uploadMenuItem} onClick={() => handleExportWord(messageId)}>
         <span>
           <FileWordOutlined />
-          导出为 Word
+          Export as Word
         </span>
       </div>
       <div className={styles.uploadMenuItem} onClick={() => handleExportPDF(messageId)}>
         <span>
           <FilePdfOutlined />
-          导出为 PDF
+          Export as PDF
         </span>
       </div>
       <div className={styles.uploadMenuItem} onClick={() => handleExportMarkdown(messageId)}>
         <span>
           <FileMarkdownOutlined />
-          导出为 Markdown
+          Export as Markdown
         </span>
       </div>
     </div>
@@ -1156,6 +1177,56 @@ const renderReasoningPanel = (
   );
 };
 
+const renderAttachments = (message, onDownload) => {
+  const attachments = message?.metadata?.attachments;
+  if (!Array.isArray(attachments) || !attachments.length) {
+    return null;
+  }
+  return (
+    <div className={styles.messageAttachments}>
+      {attachments.map((item, index) => {
+        const key = `${item?.task_id || 'attachment'}-${index}`;
+        if (item?.type === 'image') {
+          const src = item.image_base64
+            ? `data:image/png;base64,${item.image_base64}`
+            : item.download_url;
+          return (
+            <div className={styles.attachmentCard} key={key}>
+              {src && <img src={src} alt="attachment" className={styles.attachmentImage} />}
+              <div className={styles.attachmentMeta}>
+                <span>{item.file_name || 'image.png'}</span>
+                {item.download_url && (
+                  <button
+                    className={styles.attachmentBtn}
+                    onClick={() => onDownload(item.download_url, item.file_name)}
+                  >
+                    Download
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        }
+        return (
+          <div className={styles.attachmentCard} key={key}>
+            <div className={styles.attachmentMeta}>
+              <span>{item?.file_name || 'file'}</span>
+              {item?.download_url && (
+                <button
+                  className={styles.attachmentBtn}
+                  onClick={() => onDownload(item.download_url, item.file_name)}
+                >
+                  Download
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
   const renderMessageMeta = (message) => {
     const isLatestUserMessage =
       message.role === 'user' && message.id === latestUserMessageId;
@@ -1171,7 +1242,7 @@ const renderReasoningPanel = (
               <button
                 className={styles.messageActionBtn}
                 onClick={() => handleCopyMessage(message)}
-                title="复制"
+                title="Copy"
               >
                 <CopyOutlined />
               </button>
@@ -1179,7 +1250,7 @@ const renderReasoningPanel = (
                 <button
                   className={styles.messageActionBtn}
                   onClick={() => handleEditMessage(message.id)}
-                  title="编辑"
+                  title="Edit"
                   disabled={isStreaming || isCreatingSession || editingMessageId === message.id}
                 >
                   <EditOutlined />
@@ -1192,7 +1263,7 @@ const renderReasoningPanel = (
                 <button
                   className={styles.messageActionBtn}
                   onClick={() => handleRefreshMessage(message.id)}
-                  title="重新生成"
+                  title="Regenerate"
                   disabled={isStreaming || isCreatingSession}
                 >
                   <ReloadOutlined />
@@ -1201,7 +1272,7 @@ const renderReasoningPanel = (
               <button
                 className={styles.messageActionBtn}
                 onClick={() => handleCopyMessage(message)}
-                title="复制"
+                title="Copy"
               >
                 <CopyOutlined />
               </button>
@@ -1211,7 +1282,7 @@ const renderReasoningPanel = (
                 placement="topRight"
                 styles={POPOVER_STYLES}
               >
-                <button className={styles.messageActionBtn} title="更多">
+                <button className={styles.messageActionBtn} title="More">
                   <EllipsisOutlined />
                 </button>
               </Popover>
@@ -1261,7 +1332,7 @@ const renderReasoningPanel = (
                   value={editingDraft}
                   onChange={(e) => setEditingDraft(e.target.value)}
                   rows={4}
-                  placeholder="编辑你的问题..."
+                  placeholder="Edit your question..."
                   disabled={isStreaming}
                 />
                 <div className={styles.editActions}>
@@ -1270,21 +1341,21 @@ const renderReasoningPanel = (
                     onClick={handleSubmitEdit}
                     disabled={!editingDraft.trim() || isStreaming || isCreatingSession}
                   >
-                    保存
+                    Save
                   </button>
                   <button
                     className={`${styles.editActionBtn} ${styles.editCancelBtn}`}
                     onClick={handleCancelEdit}
                     disabled={isStreaming}
                   >
-                    取消
+                    Cancel
                   </button>
                 </div>
               </div>
             ) : showThinkingIndicator ? (
               <div className={styles.thinkingState}>
                 <LoadingOutlined className={styles.thinkingIcon} spin />
-                <span>AI 正在思考...</span>
+                <span>AI is thinking...</span>
               </div>
             ) : (
               <ReactMarkdown
@@ -1312,6 +1383,7 @@ const renderReasoningPanel = (
               </ReactMarkdown>
             )}
           </div>
+          {renderAttachments(message, handleDownloadAttachment)}
           {renderMessageMeta(message)}
         </div>
         {message.role === 'user' && (
@@ -1331,7 +1403,7 @@ const renderReasoningPanel = (
           <h1 className={styles.newChatTitle}>Rice Intelligent Agent</h1>
         </div>
         <div className={styles.modelIndicator}>
-          当前模型：{selectedModelId || '未选择模型'}
+          Current model: {selectedModelId || 'No model selected'}
         </div>
         <div className={styles.newChatInputWrapper}>
           <div className={`${styles.inputBox} ${isExpanded ? styles.expanded : ''}`}>
@@ -1341,7 +1413,7 @@ const renderReasoningPanel = (
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="输入消息开始对话..."
+              placeholder="Type a message to start chatting..."
               rows={1}
             />
             <div className={styles.inputActions}>
@@ -1352,17 +1424,17 @@ const renderReasoningPanel = (
                   placement="topLeft"
                   styles={POPOVER_STYLES}
                 >
-                  <button className={styles.actionBtn} title="上传文件">
+                  <button className={styles.actionBtn} title="Upload File">
                     <PaperClipOutlined />
                   </button>
                 </Popover>
                 {needsExpandButton() && (
-                  <button className={styles.actionBtn} onClick={toggleExpand} title="展开">
+                  <button className={styles.actionBtn} onClick={toggleExpand} title="Expand">
                     <ExpandOutlined />
                   </button>
                 )}
                 {isExpanded && (
-                  <button className={styles.actionBtn} onClick={toggleExpand} title="收起">
+                  <button className={styles.actionBtn} onClick={toggleExpand} title="Collapse">
                     <CompressOutlined />
                   </button>
                 )}
@@ -1371,7 +1443,7 @@ const renderReasoningPanel = (
                 <button
                   className={`${styles.sendBtn} ${styles.stopBtn}`}
                   onClick={handleAbortStream}
-                  title="中止回复"
+                  title="Stop Response"
                 >
                   <CloseCircleOutlined />
                 </button>
@@ -1398,7 +1470,7 @@ const renderReasoningPanel = (
       ) : (
         <>
           <div className={styles.messagesContainer}>
-            <Spin spinning={historyLoading} tip="正在加载历史记录...">
+            <Spin spinning={historyLoading} tip="Loading history...">
               <div className={styles.messagesList}>
                 {renderedMessages}
                 <div ref={messagesEndRef} />
@@ -1411,7 +1483,7 @@ const renderReasoningPanel = (
           >
             <div className={`${styles.inputBox} ${isExpanded ? styles.expanded : ''}`}>
               <div className={styles.modelIndicator}>
-                当前模型：{selectedModelId || '未选择模型'}
+                Current model: {selectedModelId || 'No model selected'}
               </div>
               <textarea
                 ref={textareaRef}
@@ -1419,7 +1491,7 @@ const renderReasoningPanel = (
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="输入消息..."
+                placeholder="Type a message..."
                 rows={1}
               />
               <div className={styles.inputActions}>
@@ -1430,17 +1502,17 @@ const renderReasoningPanel = (
                     placement="topLeft"
                     styles={POPOVER_STYLES}
                   >
-                    <button className={styles.actionBtn} title="上传文件">
+                    <button className={styles.actionBtn} title="Upload File">
                       <PaperClipOutlined />
                     </button>
                   </Popover>
                   {needsExpandButton() && (
-                    <button className={styles.actionBtn} onClick={toggleExpand} title="展开">
+                    <button className={styles.actionBtn} onClick={toggleExpand} title="Expand">
                       <ExpandOutlined />
                     </button>
                   )}
                   {isExpanded && (
-                    <button className={styles.actionBtn} onClick={toggleExpand} title="收起">
+                    <button className={styles.actionBtn} onClick={toggleExpand} title="Collapse">
                       <CompressOutlined />
                     </button>
                   )}
@@ -1449,7 +1521,7 @@ const renderReasoningPanel = (
                   <button
                     className={`${styles.sendBtn} ${styles.stopBtn}`}
                     onClick={handleAbortStream}
-                    title="中止回复"
+                    title="Stop Response"
                   >
                     <CloseCircleOutlined />
                   </button>

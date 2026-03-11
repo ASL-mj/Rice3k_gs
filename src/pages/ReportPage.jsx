@@ -1,74 +1,38 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { EyeOutlined, CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import styles from '../styles/ReportPage.module.css';
+import { message } from 'antd';
+import { reportsApi } from '../utils/api';
 
-const ReportPage = () => {
+const ReportPage = ({ accessToken, isLoggedIn, onShowLoginModal }) => {
   const [selectedReport, setSelectedReport] = useState(null);
+  const [reports, setReports] = useState([]);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
-  const reports = [
-    {
-      id: 'R001',
-      taskName: 'Data Analysis Report',
-      status: 'Completed',
-      time: '2024-03-01 11:30',
-      userInput: 'Analyze sales data for Q1 2024',
-      files: ['sales_q1.csv', 'analysis_config.json'],
-      steps: ['Data Loading', 'Data Cleaning', 'Statistical Analysis', 'Visualization'],
-    },
-    {
-      id: 'R002',
-      taskName: 'Model Training Report',
-      status: 'Completed',
-      time: '2024-03-01 10:15',
-      userInput: 'Train ML model on customer data',
-      files: ['customer_data.csv', 'model_config.py'],
-      steps: ['Data Preprocessing', 'Feature Engineering', 'Model Training', 'Evaluation'],
-    },
-    {
-      id: 'R003',
-      taskName: 'Performance Analysis',
-      status: 'Running',
-      time: '2024-03-01 14:00',
-      userInput: 'Analyze system performance metrics',
-      files: ['metrics.log', 'config.yaml'],
-      steps: ['Data Collection', 'Metric Calculation', 'Trend Analysis'],
-    },
-    {
-      id: 'R004',
-      taskName: 'User Behavior Study',
-      status: 'Failed',
-      time: '2024-03-01 09:45',
-      userInput: 'Study user interaction patterns',
-      files: ['user_logs.json'],
-      steps: ['Log Parsing', 'Pattern Recognition'],
-    },
-    {
-      id: 'R005',
-      taskName: 'Market Research',
-      status: 'Completed',
-      time: '2024-02-28 16:20',
-      userInput: 'Research market trends',
-      files: ['market_data.xlsx', 'trends.pdf'],
-      steps: ['Data Collection', 'Trend Analysis', 'Report Generation'],
-    },
-    {
-      id: 'R006',
-      taskName: 'Quality Assessment',
-      status: 'Completed',
-      time: '2024-02-28 13:10',
-      userInput: 'Assess product quality metrics',
-      files: ['quality_data.csv'],
-      steps: ['Data Validation', 'Quality Scoring', 'Summary Report'],
-    },
-  ];
+  const loadReports = async () => {
+    if (!isLoggedIn || !accessToken) {
+      onShowLoginModal?.();
+      return;
+    }
+    try {
+      const resp = await reportsApi.list(accessToken);
+      setReports(resp.reports || []);
+    } catch (error) {
+      message.error(error.message || 'Failed to load reports.');
+    }
+  };
+
+  useEffect(() => {
+    loadReports();
+  }, [accessToken, isLoggedIn]);
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'Completed':
+      case 'completed':
         return <CheckCircleOutlined style={{ color: '#10b981' }} />;
-      case 'Running':
+      case 'running':
         return <ClockCircleOutlined style={{ color: '#f59e0b' }} />;
-      case 'Failed':
+      case 'failed':
         return <CloseCircleOutlined style={{ color: '#ef4444' }} />;
       default:
         return null;
@@ -77,14 +41,57 @@ const ReportPage = () => {
 
   const getStatusColor = (status) => {
     const colors = {
-      Completed: '#10b981',
-      Running: '#f59e0b',
-      Failed: '#ef4444',
+      completed: '#10b981',
+      running: '#f59e0b',
+      failed: '#ef4444',
     };
-    return colors[status] || '#666';
+    return colors[(status || '').toLowerCase()] || '#666';
+  };
+
+  const formatReport = (report) => {
+    const task = report.task || {};
+    const status = task.status || report.status || 'completed';
+    return {
+      id: report.report_id || report.id,
+      taskName: task.task_name || task.tool_name || report.tool_name || 'Report',
+      status,
+      time: report.created_at || task.completed_at || task.created_at,
+      userInput: task.user_input || '-',
+      files: Array.isArray(task.input_files)
+        ? task.input_files
+        : task.input_files
+        ? [task.input_files]
+        : [],
+      steps: task.steps || [],
+      task,
+      attachments: report.attachments || [],
+    };
+  };
+
+  const handleViewReport = async (report) => {
+    if (!report) return;
+    if (!isLoggedIn || !accessToken) {
+      onShowLoginModal?.();
+      return;
+    }
+    const reportId = report.report_id || report.id;
+    if (!reportId) {
+      message.error('Report ID not found.');
+      return;
+    }
+    setLoadingDetail(true);
+    try {
+      const detail = await reportsApi.get(accessToken, reportId);
+      setSelectedReport(detail);
+    } catch (error) {
+      message.error(error.message || 'Failed to load report detail.');
+    } finally {
+      setLoadingDetail(false);
+    }
   };
 
   if (selectedReport) {
+    const formatted = formatReport(selectedReport);
     return (
       <div className={styles.container}>
         <button 
@@ -100,33 +107,33 @@ const ReportPage = () => {
             <div className={styles.infoGrid}>
               <div className={styles.infoItem}>
                 <span className={styles.infoLabel}>Report ID:</span>
-                <span className={styles.infoValue}>{selectedReport.id}</span>
+                <span className={styles.infoValue}>{formatted.id}</span>
               </div>
               <div className={styles.infoItem}>
                 <span className={styles.infoLabel}>Task Name:</span>
-                <span className={styles.infoValue}>{selectedReport.taskName}</span>
+                <span className={styles.infoValue}>{formatted.taskName}</span>
               </div>
               <div className={styles.infoItem}>
                 <span className={styles.infoLabel}>Status:</span>
                 <span 
                   className={styles.statusBadge}
-                  style={{ backgroundColor: getStatusColor(selectedReport.status) }}
+                  style={{ backgroundColor: getStatusColor(formatted.status) }}
                 >
-                  {getStatusIcon(selectedReport.status)} {selectedReport.status}
+                  {getStatusIcon(formatted.status)} {formatted.status}
                 </span>
               </div>
               <div className={styles.infoItem}>
                 <span className={styles.infoLabel}>Time:</span>
-                <span className={styles.infoValue}>{selectedReport.time}</span>
+                <span className={styles.infoValue}>{formatted.time}</span>
               </div>
               <div className={styles.infoItem}>
                 <span className={styles.infoLabel}>User Input:</span>
-                <span className={styles.infoValue}>{selectedReport.userInput}</span>
+                <span className={styles.infoValue}>{formatted.userInput}</span>
               </div>
               <div className={styles.infoItem}>
                 <span className={styles.infoLabel}>Files:</span>
                 <div className={styles.fileList}>
-                  {selectedReport.files.map((file, idx) => (
+                  {formatted.files.map((file, idx) => (
                     <span key={idx} className={styles.fileTag}>{file}</span>
                   ))}
                 </div>
@@ -137,7 +144,7 @@ const ReportPage = () => {
           <div className={styles.detailSection}>
             <h2 className={styles.detailTitle}>Analysis Steps</h2>
             <div className={styles.stepsTimeline}>
-              {selectedReport.steps.map((step, idx) => (
+              {(formatted.steps || []).map((step, idx) => (
                 <div key={idx} className={styles.stepItem}>
                   <div className={styles.stepNumber}>{idx + 1}</div>
                   <div className={styles.stepContent}>
@@ -154,17 +161,43 @@ const ReportPage = () => {
           <div className={styles.detailSection}>
             <h2 className={styles.detailTitle}>Report Content</h2>
             <div className={styles.reportContent}>
-              <p>This is a placeholder for the detailed report content. In a real application, this would contain the actual analysis results, charts, tables, and conclusions generated by the agent.</p>
-              <p>The report would include:</p>
-              <ul>
-                <li>Executive Summary</li>
-                <li>Detailed Analysis Results</li>
-                <li>Data Visualizations</li>
-                <li>Key Findings</li>
-                <li>Recommendations</li>
-              </ul>
+              <p>Report data is available via task results and attachments.</p>
             </div>
           </div>
+
+          {loadingDetail ? (
+            <div className={styles.detailSection}>
+              <h2 className={styles.detailTitle}>Attachments</h2>
+              <div>Loading...</div>
+            </div>
+          ) : formatted.attachments?.length ? (
+            <div className={styles.detailSection}>
+              <h2 className={styles.detailTitle}>Attachments</h2>
+              <div className={styles.attachmentList}>
+                {formatted.attachments.map((item, idx) => {
+                  const key = `${formatted.id}-att-${idx}`;
+                  const src = item.image_base64
+                    ? `data:image/png;base64,${item.image_base64}`
+                    : item.download_url;
+                  return (
+                    <div className={styles.attachmentCard} key={key}>
+                      {src && (
+                        <img src={src} alt="attachment" className={styles.attachmentImage} />
+                      )}
+                      <div className={styles.attachmentMeta}>
+                        <span>{item.file_name || 'image.png'}</span>
+                        {item.download_url && (
+                          <a className={styles.attachmentBtn} href={item.download_url}>
+                            Download
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     );
@@ -175,33 +208,35 @@ const ReportPage = () => {
       <h1 className={styles.title}>Agent Analysis Reports</h1>
 
       <div className={styles.reportsGrid}>
-        {reports.map((report) => (
-          <div key={report.id} className={styles.reportCard}>
+        {reports.map((report) => {
+          const formatted = formatReport(report);
+          return (
+          <div key={formatted.id} className={styles.reportCard}>
             <div className={styles.cardHeader}>
-              <h3 className={styles.cardTitle}>{report.taskName}</h3>
+              <h3 className={styles.cardTitle}>{formatted.taskName}</h3>
               <span 
                 className={styles.statusBadge}
-                style={{ backgroundColor: getStatusColor(report.status) }}
+                style={{ backgroundColor: getStatusColor(formatted.status) }}
               >
-                {getStatusIcon(report.status)} {report.status}
+                {getStatusIcon(formatted.status)} {formatted.status}
               </span>
             </div>
 
             <div className={styles.cardBody}>
               <div className={styles.cardInfo}>
                 <span className={styles.cardLabel}>Time:</span>
-                <span className={styles.cardValue}>{report.time}</span>
+                <span className={styles.cardValue}>{formatted.time}</span>
               </div>
 
               <div className={styles.cardInfo}>
                 <span className={styles.cardLabel}>User Input:</span>
-                <span className={styles.cardValue}>{report.userInput}</span>
+                <span className={styles.cardValue}>{formatted.userInput}</span>
               </div>
 
               <div className={styles.cardInfo}>
                 <span className={styles.cardLabel}>Related Files:</span>
                 <div className={styles.fileList}>
-                  {report.files.map((file, idx) => (
+                  {formatted.files.map((file, idx) => (
                     <span key={idx} className={styles.fileTag}>{file}</span>
                   ))}
                 </div>
@@ -210,7 +245,7 @@ const ReportPage = () => {
               <div className={styles.cardInfo}>
                 <span className={styles.cardLabel}>Analysis Steps:</span>
                 <div className={styles.stepsList}>
-                  {report.steps.map((step, idx) => (
+                  {(formatted.steps || []).map((step, idx) => (
                     <span key={idx} className={styles.stepBadge}>
                       {idx + 1}. {step}
                     </span>
@@ -222,13 +257,13 @@ const ReportPage = () => {
             <div className={styles.cardFooter}>
               <button 
                 className={styles.viewBtn}
-                onClick={() => setSelectedReport(report)}
+                onClick={() => handleViewReport(report)}
               >
                 <EyeOutlined /> View Details
               </button>
             </div>
           </div>
-        ))}
+        )})}
       </div>
     </div>
   );

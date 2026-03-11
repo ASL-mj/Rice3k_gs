@@ -26,7 +26,7 @@ import { sessionApi } from '../utils/api';
 
 const RICE3KGS_URL = 'http://101.201.107.228:8002/#/Rice3KGS/home/';
 
-// ==================== 配置常量 ====================
+// ==================== Configuration Constants ====================
 const NAVIGATION_ITEMS = [
   { id: 'chat', icon: chatIcon, label: 'AI Assistant', path: '/chat' },
   { id: 'tasks', icon: taskIcon, label: 'Task Management', path: '/tasks' },
@@ -73,7 +73,7 @@ const POPOVER_STYLES = {
   },
 };
 
-// ==================== 主组件 ====================
+// ==================== Main Component ====================
 const Sidebar = ({
   isCollapsed,
   onToggleCollapse,
@@ -100,10 +100,10 @@ const Sidebar = ({
     return map;
   }, [dialogues]);
 
-  // ==================== 事件处理函数 ====================
+  // ==================== Event Handlers ====================
   const requireAuth = () => {
     if (!isLoggedIn || !accessToken) {
-      message.warning('请先登录后再执行此操作');
+      message.warning('Please log in before performing this action.');
       onShowLoginModal?.();
       return false;
     }
@@ -112,7 +112,7 @@ const Sidebar = ({
 
   const handleNavClick = (item) => {
     if (item.subItems) {
-      // 如果有子菜单，不做任何操作（由 Popover 控制）
+      // If there is a submenu, do nothing (handled by Popover).
       return;
     }
 
@@ -121,7 +121,7 @@ const Sidebar = ({
       return;
     }
 
-    // 检查登录状态（聊天页面除外）
+    // Check login status (except chat page).
     if (!isLoggedIn && item.id !== 'chat') {
       onShowLoginModal();
       return;
@@ -131,7 +131,7 @@ const Sidebar = ({
   };
 
   const handleSubItemClick = (subItem) => {
-    // 检查登录状态
+    // Check login status.
     if (!isLoggedIn) {
       onShowLoginModal();
       setToolsMenuOpen(false);
@@ -185,15 +185,15 @@ const Sidebar = ({
 
     if (action === 'delete') {
       Modal.confirm({
-        title: '删除会话',
-        content: `确定要删除「${dialogue.title || '未命名会话'}」吗？此操作不可撤销。`,
-        okText: '删除',
-        cancelText: '取消',
+        title: 'Delete Session',
+        content: `Are you sure you want to delete “${dialogue.title || 'Untitled Session'}”? This action cannot be undone.`,
+        okText: 'Delete',
+        cancelText: 'Cancel',
         okButtonProps: { danger: true },
         onOk: async () => {
           try {
             await sessionApi.delete(accessToken, dialogue.id);
-            message.success('会话已删除');
+            message.success('Session deleted.');
             onSessionsChange((prev = []) =>
               prev.filter((session) => session.session_id !== dialogue.id)
             );
@@ -201,7 +201,7 @@ const Sidebar = ({
               navigate('/chat');
             }
           } catch (error) {
-            message.error(error.message || '删除失败');
+            message.error(error.message || 'Delete failed.');
             throw error;
           }
         },
@@ -211,7 +211,7 @@ const Sidebar = ({
 
     if (action === 'pin') {
       const targetPinned = !dialogue.pinned;
-      const successMessage = targetPinned ? '会话已置顶' : '已取消置顶';
+      const successMessage = targetPinned ? 'Session pinned.' : 'Unpinned.';
       try {
         await sessionApi.update(accessToken, dialogue.id, { pinned: targetPinned });
         onSessionsChange((prev = []) =>
@@ -228,7 +228,7 @@ const Sidebar = ({
         );
         message.success(successMessage);
       } catch (error) {
-        message.error(error.message || '更新失败');
+        message.error(error.message || 'Update failed.');
       }
     }
   };
@@ -252,7 +252,7 @@ const Sidebar = ({
   const handleRenameSubmit = async () => {
     const trimmed = renameValue.trim();
     if (!trimmed) {
-      message.warning('标题不能为空');
+      message.warning('Title cannot be empty.');
       return;
     }
     if (!renameTargetId || !requireAuth()) {
@@ -267,11 +267,11 @@ const Sidebar = ({
           return sessionId === renameTargetId ? { ...session, title: trimmed } : session;
         })
       );
-      message.success('会话标题已更新');
+      message.success('Session title updated.');
       setRenameTargetId(null);
       setRenameValue('');
     } catch (error) {
-      message.error(error.message || '更新失败');
+      message.error(error.message || 'Update failed.');
     } finally {
       setRenameSubmitting(false);
     }
@@ -284,7 +284,7 @@ const Sidebar = ({
     return location.pathname === path || location.pathname.startsWith(path + '/');
   };
 
-  // ==================== 渲染函数 ====================
+  // ==================== Render Functions ====================
   const renderToolsMenuContent = (subItems) => (
     <div className={styles.popoverMenu}>
       {subItems.map(subItem => (
@@ -305,11 +305,11 @@ const Sidebar = ({
         <div className={styles.userMenuName}>{user?.username || 'User'}</div>
         <div className={styles.userMenuContact}>
           <MailOutlined />
-          <span>{user?.email || '未绑定邮箱'}</span>
+          <span>{user?.email || 'No email linked'}</span>
         </div>
         <div className={styles.userMenuContact}>
           <PhoneOutlined />
-          <span>{user?.phone || '未绑定电话'}</span>
+          <span>{user?.phone || 'No phone linked'}</span>
         </div>
       </div>
       <div className={styles.menuDivider} />
@@ -384,7 +384,7 @@ const Sidebar = ({
                   handleRenameCancel();
                 }
               }}
-              placeholder="请输入会话标题"
+              placeholder="Enter a session title"
               autoFocus
             />
             <div className={styles.dialogueRenameActions}>
@@ -396,7 +396,7 @@ const Sidebar = ({
                 }}
                 disabled={renameSubmitting}
               >
-                保存
+                Save
               </button>
               <button
                 className={styles.dialogueCancelBtn}
@@ -406,7 +406,7 @@ const Sidebar = ({
                 }}
                 disabled={renameSubmitting}
               >
-                取消
+                Cancel
               </button>
             </div>
           </div>
@@ -454,11 +454,11 @@ const Sidebar = ({
     );
   };
 
-  // ==================== 主渲染 ====================
+  // ==================== Main Render ====================
   return (
     <>
       <div className={`${styles.sidebar} ${isCollapsed ? styles.collapsed : ''}`}>
-        {/* 头部 */}
+        {/* Header */}
         <div className={styles.sidebarHeader}>
           <div className={styles.logo} onClick={handleLogoClick}>
             <img src={logoImg} alt="Rice AI" className={styles.logoImage} />
@@ -471,11 +471,11 @@ const Sidebar = ({
         )}
       </div>
 
-      {/* 导航菜单 */}
+      {/* Navigation Menu */}
       <nav className={styles.sidebarNav}>
         {NAVIGATION_ITEMS.map(item => {
           if (item.subItems) {
-            // 有子菜单的项使用 Popover
+            // Items with submenus use Popover.
             return (
               <Popover
                 key={item.id}
@@ -497,7 +497,7 @@ const Sidebar = ({
             );
           }
           
-          // 没有子菜单的项正常渲染
+          // Items without submenus render normally.
           return (
             <div
               key={item.id}
@@ -512,10 +512,10 @@ const Sidebar = ({
         })}
       </nav>
 
-      {/* 对话历史区域 */}
+      {/* Dialogue History Section */}
       {renderDialogueSection()}
 
-      {/* 用户信息区域 */}
+      {/* User Info Section */}
       <div className={styles.sidebarFooter}>
         {isLoggedIn ? (
           <Popover
@@ -533,8 +533,8 @@ const Sidebar = ({
               {!isCollapsed && (
                 <div className={styles.userInfo}>
                   <div className={styles.userName}>{user?.username || 'User'}</div>
-                  <div className={styles.userEmail}>{user?.email || '未绑定邮箱'}</div>
-                  <div className={styles.userPhone}>{user?.phone || '未绑定电话'}</div>
+                  <div className={styles.userEmail}>{user?.email || 'No email linked'}</div>
+                  <div className={styles.userPhone}>{user?.phone || 'No phone linked'}</div>
                 </div>
               )}
             </div>

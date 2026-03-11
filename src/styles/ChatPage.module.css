@@ -180,6 +180,48 @@
   color: var(--color-text-secondary);
 }
 
+.messageAttachments {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.attachmentCard {
+  background-color: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.attachmentImage {
+  width: 100%;
+  border-radius: 8px;
+  display: block;
+}
+
+.attachmentMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.attachmentBtn {
+  border: none;
+  background-color: var(--color-border-soft);
+  color: var(--color-text-primary);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.attachmentBtn:hover {
+  background-color: var(--color-surface-alt);
+}
+
 .reasoningPanel {
   background-color: var(--color-panel-muted);
   border-radius: 10px;
