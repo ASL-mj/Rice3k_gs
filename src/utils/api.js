@@ -4,7 +4,7 @@ const defaultHeaders = {
   'Content-Type': 'application/json',
 };
 
-const buildUrl = (path) => {
+export const buildUrl = (path) => {
   if (path.startsWith('http://') || path.startsWith('https://')) {
     return path;
   }

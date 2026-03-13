@@ -27,7 +27,7 @@ import CodeBlock from '../components/CodeBlock';
 import styles from '../styles/ChatPage.module.css';
 import assistant from '@/assets/images/logo.png';
 import userAvatar from '@/assets/images/LogoTop.png';
-import { chatApi, sessionApi, filesApi } from '../utils/api';
+import { chatApi, sessionApi, filesApi, buildUrl } from '../utils/api';
 
 const POPOVER_STYLES = {
   container: {
@@ -330,7 +330,11 @@ const ChatPage = ({
     async (url, filename = 'file') => {
       if (!url) return;
       try {
-        const response = await fetch(url, {
+        const resolvedUrl =
+          url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')
+            ? url
+            : buildUrl(url);
+        const response = await fetch(resolvedUrl, {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
         if (!response.ok) {
@@ -343,6 +347,129 @@ const ChatPage = ({
       }
     },
     [accessToken, downloadBlob]
+  );
+
+  const updateMessageById = useCallback((messageId, mapper) => {
+    setMessages((prev) =>
+      prev.map((message) => (message.id === messageId ? mapper(message) : message))
+    );
+  }, []);
+
+  const updateAttachmentByIndex = useCallback(
+    (messageId, index, updater) => {
+      updateMessageById(messageId, (message) => {
+        const existing = Array.isArray(message.metadata?.attachments)
+          ? message.metadata.attachments
+          : [];
+        if (!existing[index]) {
+          return message;
+        }
+        const nextAttachments = [...existing];
+        const current = nextAttachments[index] || {};
+        const next = typeof updater === 'function' ? updater(current) : { ...current, ...updater };
+        nextAttachments[index] = next;
+        return {
+          ...message,
+          metadata: {
+            ...message.metadata,
+            attachments: nextAttachments,
+          },
+        };
+      });
+    },
+    [updateMessageById]
+  );
+
+  const fetchTableAttachment = useCallback(
+    async (messageId, index, attachment) => {
+      if (!attachment?.download_url) {
+        updateAttachmentByIndex(messageId, index, { loading: false, error: '缺少表格数据地址' });
+        return;
+      }
+      updateAttachmentByIndex(messageId, index, { loading: true, error: null });
+      try {
+        const resolvedUrl =
+          attachment.download_url.startsWith('http://') ||
+          attachment.download_url.startsWith('https://')
+            ? attachment.download_url
+            : buildUrl(attachment.download_url);
+        const response = await fetch(resolvedUrl, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!response.ok) {
+          throw new Error(`表格数据获取失败: ${response.status}`);
+        }
+        const data = await response.json().catch(() => ({}));
+        const rows = data.rows || data.results || [];
+        const columns =
+          (Array.isArray(attachment.columns) && attachment.columns.length
+            ? attachment.columns
+            : data.columns) ||
+          (rows[0] ? Object.keys(rows[0]) : []);
+        updateAttachmentByIndex(messageId, index, {
+          loading: false,
+          error: null,
+          rows,
+          columns,
+          row_count: data?.meta?.count ?? attachment.row_count,
+          page_size: attachment.page_size || 5,
+          page: 1,
+          page_input: '1',
+        });
+      } catch (error) {
+        updateAttachmentByIndex(messageId, index, {
+          loading: false,
+          error: error.message || '表格数据获取失败',
+        });
+      }
+    },
+    [accessToken, updateAttachmentByIndex]
+  );
+
+  const handleTablePageChange = useCallback(
+    (messageId, index, nextPage) => {
+      updateAttachmentByIndex(messageId, index, (current) => {
+        const rows = Array.isArray(current.rows) ? current.rows : [];
+        const pageSize = Number(current.page_size) > 0 ? Number(current.page_size) : 5;
+        const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+        const page = Math.min(Math.max(1, Number(nextPage) || 1), totalPages);
+        return {
+          ...current,
+          page,
+          page_input: String(page),
+        };
+      });
+    },
+    [updateAttachmentByIndex]
+  );
+
+  const handleTablePageInputChange = useCallback(
+    (messageId, index, value) => {
+      updateAttachmentByIndex(messageId, index, { page_input: value });
+    },
+    [updateAttachmentByIndex]
+  );
+
+  const handleTablePageJump = useCallback(
+    (messageId, index) => {
+      updateAttachmentByIndex(messageId, index, (current) => {
+        const raw = current.page_input;
+        const target = Number(raw);
+        if (!target || Number.isNaN(target)) {
+          return { ...current, page_input: String(current.page || 1) };
+        }
+        const rows = Array.isArray(current.rows) ? current.rows : [];
+        const pageSize = Number(current.page_size) > 0 ? Number(current.page_size) : 5;
+        const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+        const page = Math.min(Math.max(1, target), totalPages);
+        return {
+          ...current,
+          page,
+          page_input: String(page),
+        };
+      });
+    },
+    [updateAttachmentByIndex]
   );
 
   const isNewChat = !dialogueId;
@@ -389,6 +516,15 @@ const ChatPage = ({
           });
           return initial;
         });
+        normalized.forEach((msg) => {
+          const attachments = msg?.metadata?.attachments;
+          if (!Array.isArray(attachments)) return;
+          attachments.forEach((item, index) => {
+            if (item?.type === 'table') {
+              fetchTableAttachment(msg.id, index, item);
+            }
+          });
+        });
       })
       .catch((error) => {
         if (cancelled) return;
@@ -404,7 +540,7 @@ const ChatPage = ({
     return () => {
       cancelled = true;
     };
-  }, [dialogueId, accessToken, isLoggedIn, scrollToBottom]);
+  }, [dialogueId, accessToken, isLoggedIn, scrollToBottom, fetchTableAttachment]);
 
   useEffect(() => {
     if (!isNewChat) {
@@ -452,12 +588,6 @@ const ChatPage = ({
   const toggleExpand = () => {
     setIsExpanded((prev) => !prev);
   };
-
-  const updateMessageById = useCallback((messageId, mapper) => {
-    setMessages((prev) =>
-      prev.map((message) => (message.id === messageId ? mapper(message) : message))
-    );
-  }, []);
 
   const refreshSessions = useCallback(async () => {
     if (!accessToken) return;
@@ -532,6 +662,13 @@ const ChatPage = ({
         },
         timestamp: new Date().toISOString(),
       }));
+      if (attachments.length) {
+        attachments.forEach((item, index) => {
+          if (item?.type === 'table') {
+            fetchTableAttachment(assistantId, index, item);
+          }
+        });
+      }
       setIsStreaming(false);
       setStreamingMessageId(null);
       setStreamingReasoning('');
@@ -540,7 +677,7 @@ const ChatPage = ({
       setReasoningExpandedMap((prev) => ({ ...prev, [assistantId]: false }));
       refreshSessions();
     },
-    [updateMessageById, refreshSessions]
+    [updateMessageById, refreshSessions, fetchTableAttachment]
   );
 
   const handleStreamEvent = useCallback(
@@ -1211,7 +1348,13 @@ const renderReasoningPanel = (
   );
 };
 
-const renderAttachments = (message, onDownload) => {
+const renderAttachments = (
+  message,
+  onDownload,
+  onTablePageChange,
+  onTablePageInputChange,
+  onTablePageJump
+) => {
   const attachments = message?.metadata?.attachments;
   if (!Array.isArray(attachments) || !attachments.length) {
     return null;
@@ -1224,9 +1367,17 @@ const renderAttachments = (message, onDownload) => {
           const src = item.image_base64
             ? `data:image/png;base64,${item.image_base64}`
             : item.download_url;
+          const resolvedSrc =
+            src && (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:'))
+              ? src
+              : src
+              ? buildUrl(src)
+              : src;
           return (
             <div className={styles.attachmentCard} key={key}>
-              {src && <img src={src} alt="attachment" className={styles.attachmentImage} />}
+              {resolvedSrc && (
+                <img src={resolvedSrc} alt="attachment" className={styles.attachmentImage} />
+              )}
               <div className={styles.attachmentMeta}>
                 <span>{item.file_name || 'image.png'}</span>
                 {item.download_url && (
@@ -1238,6 +1389,119 @@ const renderAttachments = (message, onDownload) => {
                   </button>
                 )}
               </div>
+            </div>
+          );
+        }
+        if (item?.type === 'table') {
+          const columns = Array.isArray(item.columns) ? item.columns : [];
+          const rows = Array.isArray(item.rows) ? item.rows : [];
+          const pageSize = Number(item.page_size) > 0 ? Number(item.page_size) : 5;
+          const totalRows = rows.length;
+          const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+          const currentPage =
+            Number(item.page) > 0 ? Math.min(Number(item.page), totalPages) : 1;
+          const pageInput =
+            item.page_input !== undefined && item.page_input !== null
+              ? item.page_input
+              : String(currentPage);
+          const start = (currentPage - 1) * pageSize;
+          const pageRows = rows.slice(start, start + pageSize);
+          return (
+            <div className={styles.attachmentCard} key={key}>
+              <div className={styles.attachmentMeta}>
+                <span>{item.title || item.file_name || 'table'}</span>
+                <div className={styles.attachmentMetaRight}>
+                  {item.row_count !== undefined && (
+                    <span className={styles.attachmentMetaSecondary}>
+                      共 {item.row_count} 条
+                    </span>
+                  )}
+                  {item.download_url && (
+                    <button
+                      className={styles.attachmentBtn}
+                      onClick={() => onDownload(item.download_url, item.file_name || 'table.json')}
+                    >
+                      Download
+                    </button>
+                  )}
+                </div>
+              </div>
+              {item.loading && (
+                <div className={styles.tableLoading}>
+                  <Spin size="small" />
+                  <span>正在加载表格数据...</span>
+                </div>
+              )}
+              {!item.loading && item.error && (
+                <div className={styles.tableError}>{item.error}</div>
+              )}
+              {!item.loading && !item.error && pageRows.length > 0 && (
+                <div className={styles.tableWrapper}>
+                  <table className={styles.dataTable}>
+                    <thead>
+                      <tr>
+                        {columns.map((col) => (
+                          <th key={col}>{col}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pageRows.map((row, rowIdx) => (
+                        <tr key={rowIdx}>
+                          {columns.map((col) => (
+                            <td key={col}>{row?.[col] ?? ''}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {!item.loading && !item.error && rows.length === 0 && (
+                <div className={styles.tableEmpty}>暂无数据</div>
+              )}
+              {!item.loading && !item.error && rows.length > 0 && (
+                <div className={styles.tablePagination}>
+                  <button
+                    className={styles.tablePageBtn}
+                    disabled={currentPage <= 1}
+                    onClick={() =>
+                      onTablePageChange?.(message.id, index, currentPage - 1)
+                    }
+                  >
+                    上一页
+                  </button>
+                  <span className={styles.tablePageInfo}>
+                    第 {currentPage} / {totalPages} 页
+                  </span>
+                  <button
+                    className={styles.tablePageBtn}
+                    disabled={currentPage >= totalPages}
+                    onClick={() =>
+                      onTablePageChange?.(message.id, index, currentPage + 1)
+                    }
+                  >
+                    下一页
+                  </button>
+                  <span className={styles.tablePageLabel}>跳转到</span>
+                  <input
+                    className={styles.tablePageInput}
+                    type="number"
+                    min="1"
+                    max={totalPages}
+                    value={pageInput}
+                    onChange={(event) =>
+                      onTablePageInputChange?.(message.id, index, event.target.value)
+                    }
+                  />
+                  <button
+                    className={styles.tablePageBtn}
+                    onClick={() => onTablePageJump?.(message.id, index)}
+                  >
+                    Go
+                  </button>
+                </div>
+              )}
             </div>
           );
         }
@@ -1417,7 +1681,13 @@ const renderAttachments = (message, onDownload) => {
               </ReactMarkdown>
             )}
           </div>
-          {renderAttachments(message, handleDownloadAttachment)}
+          {renderAttachments(
+            message,
+            handleDownloadAttachment,
+            handleTablePageChange,
+            handleTablePageInputChange,
+            handleTablePageJump
+          )}
           {renderMessageMeta(message)}
         </div>
         {message.role === 'user' && (

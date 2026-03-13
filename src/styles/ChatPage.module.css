@@ -208,6 +208,17 @@
   color: var(--color-text-secondary);
 }
 
+.attachmentMetaRight {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.attachmentMetaSecondary {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+}
+
 .attachmentBtn {
   border: none;
   background-color: var(--color-border-soft);
@@ -220,6 +231,102 @@
 
 .attachmentBtn:hover {
   background-color: var(--color-surface-alt);
+}
+
+.tableWrapper {
+  margin-top: 10px;
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.dataTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  color: var(--color-text-primary);
+}
+
+.dataTable th,
+.dataTable td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.dataTable th {
+  background: var(--color-surface-alt);
+  font-weight: 600;
+}
+
+.dataTable tr:last-child td {
+  border-bottom: none;
+}
+
+.tableLoading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.tableError {
+  margin-top: 10px;
+  color: #d4380d;
+  font-size: 12px;
+}
+
+.tableEmpty {
+  margin-top: 10px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.tablePagination {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.tablePageBtn {
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface-alt);
+  color: var(--color-text-primary);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tablePageBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tablePageInfo {
+  color: var(--color-text-primary);
+}
+
+.tablePageLabel {
+  color: var(--color-text-secondary);
+}
+
+.tablePageInput {
+  width: 70px;
+  padding: 4px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-size: 12px;
 }
 
 .reasoningPanel {
