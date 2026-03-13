@@ -27,7 +27,7 @@ import CodeBlock from '../components/CodeBlock';
 import styles from '../styles/ChatPage.module.css';
 import assistant from '@/assets/images/logo.png';
 import userAvatar from '@/assets/images/LogoTop.png';
-import { chatApi, sessionApi } from '../utils/api';
+import { chatApi, sessionApi, filesApi } from '../utils/api';
 
 const POPOVER_STYLES = {
   container: {
@@ -139,6 +139,7 @@ const ChatPage = ({
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editingDraft, setEditingDraft] = useState('');
   const [streamingUserMessageId, setStreamingUserMessageId] = useState(null);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
   const textareaRef = useRef(null);
   const messagesEndRef = useRef(null);
   const abortControllerRef = useRef(null);
@@ -629,7 +630,7 @@ const ChatPage = ({
   );
 
   const streamAssistantResponse = useCallback(
-    async (sessionId, prompt, { mode = 'chat' } = {}) => {
+    async (sessionId, prompt, { mode = 'chat', files = [] } = {}) => {
       if (!accessToken) return;
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -648,6 +649,7 @@ const ChatPage = ({
         message: prompt,
         session_id: sessionId,
         model_id: selectedModelId || undefined,
+        files: files && files.length ? files : undefined,
       };
 
       const apiCall = mode === 'regenerate' ? chatApi.regenerate : chatApi.stream;
@@ -851,7 +853,11 @@ const ChatPage = ({
       setStreamingUserMessageId(userMessage.id);
       lastPromptRef.current = prompt;
       scrollToBottom();
-      await streamAssistantResponse(sessionId, prompt);
+      const attachments = uploadedFiles.map((file) => file.path).filter(Boolean);
+      await streamAssistantResponse(sessionId, prompt, { files: attachments });
+      if (attachments.length) {
+        setUploadedFiles([]);
+      }
     } catch (error) {
       message.error(error.message || 'Send failed.');
     }
@@ -864,6 +870,34 @@ const ChatPage = ({
     }
   };
 
+  const handleFileUpload = useCallback(
+    async (file) => {
+      if (!file) return;
+      if (!isLoggedIn || !accessToken) {
+        onShowLoginModal?.();
+        return;
+      }
+      try {
+        message.loading({ content: 'Uploading file...', key: 'upload' });
+        const resp = await filesApi.upload(accessToken, file);
+        const record = {
+          name: resp.filename || file.name,
+          path: resp.path,
+          size: resp.size_mb,
+        };
+        setUploadedFiles((prev) => [...prev, record]);
+        message.success({ content: 'File uploaded.', key: 'upload' });
+      } catch (error) {
+        message.error({ content: error.message || 'Upload failed.', key: 'upload' });
+      }
+    },
+    [accessToken, isLoggedIn, onShowLoginModal]
+  );
+
+  const removeUploadedFile = useCallback((index) => {
+    setUploadedFiles((prev) => prev.filter((_, idx) => idx !== index));
+  }, []);
+
   const handleImageUpload = () => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -871,7 +905,7 @@ const ChatPage = ({
     input.onchange = (e) => {
       const file = e.target.files?.[0];
       if (file) {
-        console.log('Image uploaded:', file);
+        handleFileUpload(file);
       }
     };
     input.click();
@@ -884,7 +918,7 @@ const ChatPage = ({
     input.onchange = (e) => {
       const file = e.target.files?.[0];
       if (file) {
-        console.log('Document uploaded:', file);
+        handleFileUpload(file);
       }
     };
     input.click();
@@ -1485,6 +1519,22 @@ const renderAttachments = (message, onDownload) => {
               <div className={styles.modelIndicator}>
                 Current model: {selectedModelId || 'No model selected'}
               </div>
+              {uploadedFiles.length > 0 && (
+                <div className={styles.uploadedList}>
+                  {uploadedFiles.map((file, index) => (
+                    <div className={styles.uploadedItem} key={`${file.path}-${index}`}>
+                      <span className={styles.uploadedName}>{file.name || 'Uploaded file'}</span>
+                      <button
+                        className={styles.uploadedRemove}
+                        onClick={() => removeUploadedFile(index)}
+                        title="Remove"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <textarea
                 ref={textareaRef}
                 className={styles.textarea}

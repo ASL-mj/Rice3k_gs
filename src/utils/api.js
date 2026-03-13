@@ -155,6 +155,19 @@ export const reportsApi = {
   get: (token, reportId) => request(`/api/reports/${reportId}`, { token }),
 };
 
+export const filesApi = {
+  upload: async (token, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(buildUrl('/api/files/upload'), {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    return handleResponse(response);
+  },
+};
+
 export const loadInitialAppData = async (token) => {
   const [sessionResp, modelResp, userResp] = await Promise.all([
     sessionApi.list(token),
