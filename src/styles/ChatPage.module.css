@@ -120,7 +120,7 @@
 }
 
 .assistantMessage .messageContent {
-  max-width: 100%;
+  max-width: 90%;
 }
 
 /* 用户消息 - 右对齐，占80%宽度 */
@@ -150,6 +150,26 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.assistantMessage .messageText,
+.assistantMessage .messageAttachments,
+.assistantMessage .reasoningPanel {
+  width: fit-content;
+  max-width: 100%;
+  /* min-width: 300px; */
+}
+
+.assistantMessage .reasoningPanel {
+  align-self: flex-start;
+}
+
+.assistantMessage .messageText {
+  align-self: flex-start;
+}
+
+.assistantMessage .messageAttachments {
+  align-self: flex-start;
 }
 
 .messageText {
@@ -231,6 +251,215 @@
 
 .attachmentBtn:hover {
   background-color: var(--color-surface-alt);
+}
+
+.imageStrip {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 6px 2px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+}
+
+.imageThumb {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: zoom-in;
+  flex: 0 0 auto;
+}
+
+.imageThumbImg {
+  height: 120px;
+  border-radius: 10px;
+  display: block;
+}
+
+.fileList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fileRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.fileName {
+  font-size: 12px;
+  color: var(--color-text-primary);
+  word-break: break-all;
+}
+
+.imagePreviewOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 10, 10, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 24px;
+}
+
+.imagePreviewCard {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+  background: var(--color-surface);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
+}
+
+.imagePreviewImg {
+  max-width: 85vw;
+  max-height: 75vh;
+  display: block;
+  border-radius: 12px;
+}
+
+.imagePreviewName {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.imagePreviewClose {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.formHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.formTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.formDesc {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.formBadge {
+  background: var(--color-border-soft);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.formFields {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.formField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.formLabel {
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.formInput,
+.formTextarea {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.formTextarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.formFileRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.formFileBtn {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  color: var(--color-text-primary);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.formFileBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.formFileName {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.formError {
+  margin-top: 8px;
+  color: #d4380d;
+  font-size: 12px;
+}
+
+.formSubmit {
+  margin-top: 10px;
+  border: 1px solid #0056b3;
+  background: #007bff;
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 123, 255, 0.2);
+  transition: all 0.2s ease;
+}
+
+.formSubmit:hover {
+  background: #0056b3;
+  border-color: #004085;
+  box-shadow: 0 3px 6px rgba(0, 123, 255, 0.3);
+}
+
+.formSubmit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .tableWrapper {
@@ -364,6 +593,7 @@
   font-size: 12px;
   color: var(--color-text-secondary);
   margin-bottom: 6px;
+  gap: 20px;
 }
 
 .reasoningToggle {

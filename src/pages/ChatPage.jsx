@@ -140,6 +140,7 @@ const ChatPage = ({
   const [editingDraft, setEditingDraft] = useState('');
   const [streamingUserMessageId, setStreamingUserMessageId] = useState(null);
   const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [previewImage, setPreviewImage] = useState(null);
   const textareaRef = useRef(null);
   const messagesEndRef = useRef(null);
   const abortControllerRef = useRef(null);
@@ -380,6 +381,53 @@ const ChatPage = ({
     [updateMessageById]
   );
 
+  const openImagePreview = useCallback((src, name) => {
+    if (!src) return;
+    setPreviewImage({ src, name });
+  }, []);
+
+  const closeImagePreview = useCallback(() => {
+    setPreviewImage(null);
+  }, []);
+
+  const normalizeFormAttachment = useCallback((form) => {
+    if (!form || typeof form !== 'object') return null;
+    const fields = Array.isArray(form.fields) ? form.fields : [];
+    const values = {};
+    fields.forEach((field) => {
+      if (!field?.name) return;
+      const fallback = field.default ?? '';
+      values[field.name] = fallback;
+    });
+    return {
+      ...form,
+      type: 'form',
+      fields,
+      values: form.values && typeof form.values === 'object' ? form.values : values,
+      files: form.files && typeof form.files === 'object' ? form.files : {},
+      submitting: false,
+      error: null,
+    };
+  }, []);
+
+  const appendAttachment = useCallback(
+    (messageId, attachment) => {
+      updateMessageById(messageId, (message) => {
+        const existing = Array.isArray(message.metadata?.attachments)
+          ? message.metadata.attachments
+          : [];
+        return {
+          ...message,
+          metadata: {
+            ...message.metadata,
+            attachments: [...existing, attachment],
+          },
+        };
+      });
+    },
+    [updateMessageById]
+  );
+
   const fetchTableAttachment = useCallback(
     async (messageId, index, attachment) => {
       if (!attachment?.download_url) {
@@ -470,6 +518,57 @@ const ChatPage = ({
       });
     },
     [updateAttachmentByIndex]
+  );
+
+  const handleFormFieldChange = useCallback(
+    (messageId, index, fieldName, value) => {
+      updateAttachmentByIndex(messageId, index, (current) => {
+        const values = { ...(current.values || {}) };
+        values[fieldName] = value;
+        return { ...current, values, error: null };
+      });
+    },
+    [updateAttachmentByIndex]
+  );
+
+  const handleFormFileUpload = useCallback(
+    (messageId, index, field) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      if (field?.accept) {
+        input.accept = field.accept;
+      }
+      input.onchange = async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        if (!isLoggedIn || !accessToken) {
+          onShowLoginModal?.();
+          return;
+        }
+        try {
+          updateAttachmentByIndex(messageId, index, { submitting: true });
+          const resp = await filesApi.upload(accessToken, file);
+          updateAttachmentByIndex(messageId, index, (current) => {
+            const values = { ...(current.values || {}) };
+            const files = { ...(current.files || {}) };
+            values[field.name] = resp.path;
+            files[field.name] = {
+              name: resp.filename || file.name,
+              path: resp.path,
+              size: resp.size_mb,
+            };
+            return { ...current, values, files, submitting: false, error: null };
+          });
+        } catch (error) {
+          updateAttachmentByIndex(messageId, index, {
+            submitting: false,
+            error: error.message || '上传失败',
+          });
+        }
+      };
+      input.click();
+    },
+    [accessToken, isLoggedIn, onShowLoginModal, updateAttachmentByIndex]
   );
 
   const isNewChat = !dialogueId;
@@ -651,6 +750,9 @@ const ChatPage = ({
       const reasoningText = (payload.reasoning || streamingReasoningRef.current || '').trim();
       const modelId = payload.model_id;
       const attachments = Array.isArray(payload.attachments) ? payload.attachments : [];
+      const normalizedAttachments = attachments.map((item) =>
+        item?.type === 'form' ? normalizeFormAttachment(item) || item : item
+      );
       updateMessageById(assistantId, (message) => ({
         ...message,
         content: finalAnswer || message.content,
@@ -658,12 +760,12 @@ const ChatPage = ({
           ...message.metadata,
           ...(reasoningText ? { reasoning: reasoningText } : {}),
           ...(modelId ? { model_id: modelId } : {}),
-          ...(attachments.length ? { attachments } : {}),
+          ...(normalizedAttachments.length ? { attachments: normalizedAttachments } : {}),
         },
         timestamp: new Date().toISOString(),
       }));
-      if (attachments.length) {
-        attachments.forEach((item, index) => {
+      if (normalizedAttachments.length) {
+        normalizedAttachments.forEach((item, index) => {
           if (item?.type === 'table') {
             fetchTableAttachment(assistantId, index, item);
           }
@@ -677,7 +779,7 @@ const ChatPage = ({
       setReasoningExpandedMap((prev) => ({ ...prev, [assistantId]: false }));
       refreshSessions();
     },
-    [updateMessageById, refreshSessions, fetchTableAttachment]
+    [updateMessageById, refreshSessions, fetchTableAttachment, normalizeFormAttachment]
   );
 
   const handleStreamEvent = useCallback(
@@ -710,6 +812,12 @@ const ChatPage = ({
             prev ? `${prev}\n\n**${marker}**` : `**${marker}**`
           );
         }
+      } else if (eventType === 'form') {
+        const formAttachment = normalizeFormAttachment(event.data);
+        if (formAttachment) {
+          appendAttachment(assistantId, formAttachment);
+          scrollToBottom();
+        }
       } else if (eventType === 'end') {
         finalizeStream(assistantId, event.data);
       } else if (eventType === 'error') {
@@ -717,7 +825,14 @@ const ChatPage = ({
         cleanupStreamingState(assistantId, { removeAssistant: true });
       }
     },
-    [cleanupStreamingState, finalizeStream, scrollToBottom, updateMessageById]
+    [
+      appendAttachment,
+      cleanupStreamingState,
+      finalizeStream,
+      normalizeFormAttachment,
+      scrollToBottom,
+      updateMessageById,
+    ]
   );
 
   const readChatStream = useCallback(
@@ -805,6 +920,86 @@ const ChatPage = ({
       }
     },
     [accessToken, selectedModelId, createAssistantMessage, readChatStream, cleanupStreamingState]
+  );
+
+  const dispatchUserPrompt = useCallback(
+    async (prompt, { files = [], resetInput = false } = {}) => {
+      const finalPrompt = (prompt || '').trim();
+      if (!finalPrompt) {
+        return false;
+      }
+      if (!isLoggedIn || !accessToken) {
+        onShowLoginModal?.();
+        return false;
+      }
+      if (isStreaming || isCreatingSession) {
+        return false;
+      }
+      if (resetInput) {
+        setInputValue('');
+        setIsExpanded(false);
+      }
+      const sessionId = await ensureSessionId();
+      if (!sessionId) {
+        return false;
+      }
+      const userMessage = {
+        id: `user-${Date.now()}`,
+        role: 'user',
+        content: finalPrompt,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, userMessage]);
+      setStreamingUserMessageId(userMessage.id);
+      lastPromptRef.current = finalPrompt;
+      scrollToBottom();
+      await streamAssistantResponse(sessionId, finalPrompt, { files });
+      return true;
+    },
+    [
+      accessToken,
+      ensureSessionId,
+      isCreatingSession,
+      isLoggedIn,
+      isStreaming,
+      onShowLoginModal,
+      scrollToBottom,
+      streamAssistantResponse,
+    ]
+  );
+
+  const handleFormSubmit = useCallback(
+    async (messageId, index) => {
+      const messageEntry = findMessageById(messageId);
+      const attachment = messageEntry?.metadata?.attachments?.[index];
+      if (!attachment) return;
+      const fields = Array.isArray(attachment.fields) ? attachment.fields : [];
+      const values = attachment.values || {};
+      const missing = fields
+        .filter((field) => field?.required)
+        .filter((field) => !values[field.name]);
+      if (missing.length) {
+        updateAttachmentByIndex(messageId, index, {
+          error: `请填写必填项：${missing.map((field) => field.label || field.name).join('、')}`,
+        });
+        return;
+      }
+      const toolName = attachment.tool_name;
+      const payload = {};
+      fields.forEach((field) => {
+        if (!field?.name) return;
+        if (values[field.name] !== undefined) {
+          payload[field.name] = values[field.name];
+        }
+      });
+      const prompt = toolName
+        ? `请使用工具 ${toolName}，参数如下：${JSON.stringify(payload)}`
+        : JSON.stringify(payload);
+      updateAttachmentByIndex(messageId, index, { submitting: true, error: null });
+      await dispatchUserPrompt(prompt, { resetInput: false });
+      updateAttachmentByIndex(messageId, index, { submitting: false });
+    },
+    [dispatchUserPrompt, findMessageById, updateAttachmentByIndex]
   );
 
   const handleAbortStream = useCallback(() => {
@@ -966,33 +1161,13 @@ const ChatPage = ({
     if (!prompt) {
       return;
     }
-    if (!isLoggedIn || !accessToken) {
-      onShowLoginModal?.();
-      return;
-    }
-    if (isStreaming || isCreatingSession) {
-      return;
-    }
-    setInputValue('');
-    setIsExpanded(false);
     try {
-      const sessionId = await ensureSessionId();
-      if (!sessionId) {
-        return;
-      }
-      const userMessage = {
-        id: `user-${Date.now()}`,
-        role: 'user',
-        content: prompt,
-        timestamp: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, userMessage]);
-      setStreamingUserMessageId(userMessage.id);
-      lastPromptRef.current = prompt;
-      scrollToBottom();
       const attachments = uploadedFiles.map((file) => file.path).filter(Boolean);
-      await streamAssistantResponse(sessionId, prompt, { files: attachments });
-      if (attachments.length) {
+      const sent = await dispatchUserPrompt(prompt, {
+        files: attachments,
+        resetInput: true,
+      });
+      if (sent && attachments.length) {
         setUploadedFiles([]);
       }
     } catch (error) {
@@ -1353,162 +1528,276 @@ const renderAttachments = (
   onDownload,
   onTablePageChange,
   onTablePageInputChange,
-  onTablePageJump
+  onTablePageJump,
+  onFormChange,
+  onFormFileUpload,
+  onFormSubmit,
+  onImagePreview
 ) => {
   const attachments = message?.metadata?.attachments;
   if (!Array.isArray(attachments) || !attachments.length) {
     return null;
   }
+  const forms = attachments.filter((item) => item?.type === 'form');
+  const images = attachments.filter((item) => item?.type === 'image');
+  const tables = attachments.filter((item) => item?.type === 'table');
+  const files = attachments.filter((item) => item?.type === 'file');
+  const others = attachments.filter(
+    (item) => !['form', 'image', 'table', 'file'].includes(item?.type)
+  );
   return (
     <div className={styles.messageAttachments}>
-      {attachments.map((item, index) => {
-        const key = `${item?.task_id || 'attachment'}-${index}`;
-        if (item?.type === 'image') {
-          const src = item.image_base64
-            ? `data:image/png;base64,${item.image_base64}`
-            : item.download_url;
-          const resolvedSrc =
-            src && (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:'))
-              ? src
-              : src
-              ? buildUrl(src)
-              : src;
-          return (
-            <div className={styles.attachmentCard} key={key}>
-              {resolvedSrc && (
-                <img src={resolvedSrc} alt="attachment" className={styles.attachmentImage} />
-              )}
-              <div className={styles.attachmentMeta}>
-                <span>{item.file_name || 'image.png'}</span>
+      {forms.map((item, index) => {
+        const key = `${item?.form_id || 'form'}-${index}`;
+        const fields = Array.isArray(item.fields) ? item.fields : [];
+        const values = item.values || {};
+        return (
+          <div className={styles.attachmentCard} key={key}>
+            <div className={styles.formHeader}>
+              <div>
+                <div className={styles.formTitle}>{item.title || 'Form'}</div>
+                {item.description && <div className={styles.formDesc}>{item.description}</div>}
+              </div>
+              <span className={styles.formBadge}>Form</span>
+            </div>
+            <div className={styles.formFields}>
+              {fields.map((field) => {
+                const fieldValue =
+                  values[field.name] !== undefined ? values[field.name] : field.default || '';
+                const isRequired = Boolean(field.required);
+                const labelText = `${field.label || field.name}${isRequired ? ' *' : ''}`;
+                if (field.type === 'select') {
+                  return (
+                    <label className={styles.formField} key={field.name}>
+                      <span className={styles.formLabel}>{labelText}</span>
+                      <select
+                        className={styles.formInput}
+                        value={fieldValue}
+                        onChange={(event) =>
+                          onFormChange?.(message.id, index, field.name, event.target.value)
+                        }
+                      >
+                        <option value="">请选择</option>
+                        {(field.options || []).map((opt) => (
+                          <option key={opt.value ?? opt} value={opt.value ?? opt}>
+                            {opt.label ?? opt}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  );
+                }
+                if (field.type === 'textarea') {
+                  return (
+                    <label className={styles.formField} key={field.name}>
+                      <span className={styles.formLabel}>{labelText}</span>
+                      <textarea
+                        className={styles.formTextarea}
+                        placeholder={field.placeholder || ''}
+                        value={fieldValue}
+                        onChange={(event) =>
+                          onFormChange?.(message.id, index, field.name, event.target.value)
+                        }
+                      />
+                    </label>
+                  );
+                }
+                if (field.type === 'file') {
+                  const fileMeta = item.files?.[field.name];
+                  return (
+                    <div className={styles.formField} key={field.name}>
+                      <span className={styles.formLabel}>{labelText}</span>
+                      <div className={styles.formFileRow}>
+                        <button
+                          className={styles.formFileBtn}
+                          onClick={() => onFormFileUpload?.(message.id, index, field)}
+                          disabled={item.submitting}
+                        >
+                          选择文件
+                        </button>
+                        <span className={styles.formFileName}>
+                          {fileMeta?.name || fieldValue || '未选择'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                }
+                const inputType =
+                  field.type === 'password'
+                    ? 'password'
+                    : field.type === 'number'
+                    ? 'number'
+                    : 'text';
+                return (
+                  <label className={styles.formField} key={field.name}>
+                    <span className={styles.formLabel}>{labelText}</span>
+                    <input
+                      className={styles.formInput}
+                      type={inputType}
+                      placeholder={field.placeholder || ''}
+                      value={fieldValue}
+                      onChange={(event) =>
+                        onFormChange?.(message.id, index, field.name, event.target.value)
+                      }
+                    />
+                  </label>
+                );
+              })}
+            </div>
+            {item.error && <div className={styles.formError}>{item.error}</div>}
+            <button
+              className={styles.formSubmit}
+              onClick={() => onFormSubmit?.(message.id, index)}
+              disabled={item.submitting}
+            >
+              {item.submitting ? '提交中...' : item.submit_label || '提交'}
+            </button>
+          </div>
+        );
+      })}
+
+      {images.length > 0 && (
+        <div className={styles.imageStrip}>
+          {images.map((item, index) => {
+            const src = item.image_base64
+              ? `data:image/png;base64,${item.image_base64}`
+              : item.download_url;
+            const resolvedSrc =
+              src &&
+              (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:'))
+                ? src
+                : src
+                ? buildUrl(src)
+                : src;
+            return (
+              <button
+                key={`${item?.file_name || 'image'}-${index}`}
+                className={styles.imageThumb}
+                type="button"
+                onClick={() => resolvedSrc && onImagePreview?.(resolvedSrc, item.file_name)}
+              >
+                {resolvedSrc && (
+                  <img src={resolvedSrc} alt="attachment" className={styles.imageThumbImg} />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {tables.map((item, index) => {
+        const columns = Array.isArray(item.columns) ? item.columns : [];
+        const rows = Array.isArray(item.rows) ? item.rows : [];
+        const pageSize = Number(item.page_size) > 0 ? Number(item.page_size) : 5;
+        const totalRows = rows.length;
+        const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+        const currentPage =
+          Number(item.page) > 0 ? Math.min(Number(item.page), totalPages) : 1;
+        const pageInput =
+          item.page_input !== undefined && item.page_input !== null
+            ? item.page_input
+            : String(currentPage);
+        const start = (currentPage - 1) * pageSize;
+        const pageRows = rows.slice(start, start + pageSize);
+        return (
+          <div className={styles.attachmentCard} key={`${item?.file_name || 'table'}-${index}`}>
+            <div className={styles.attachmentMeta}>
+              <span>{item.title || item.file_name || 'table'}</span>
+              <div className={styles.attachmentMetaRight}>
+                {item.row_count !== undefined && (
+                  <span className={styles.attachmentMetaSecondary}>
+                    共 {item.row_count} 条
+                  </span>
+                )}
                 {item.download_url && (
                   <button
                     className={styles.attachmentBtn}
-                    onClick={() => onDownload(item.download_url, item.file_name)}
+                    onClick={() => onDownload(item.download_url, item.file_name || 'table.json')}
                   >
                     Download
                   </button>
                 )}
               </div>
             </div>
-          );
-        }
-        if (item?.type === 'table') {
-          const columns = Array.isArray(item.columns) ? item.columns : [];
-          const rows = Array.isArray(item.rows) ? item.rows : [];
-          const pageSize = Number(item.page_size) > 0 ? Number(item.page_size) : 5;
-          const totalRows = rows.length;
-          const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
-          const currentPage =
-            Number(item.page) > 0 ? Math.min(Number(item.page), totalPages) : 1;
-          const pageInput =
-            item.page_input !== undefined && item.page_input !== null
-              ? item.page_input
-              : String(currentPage);
-          const start = (currentPage - 1) * pageSize;
-          const pageRows = rows.slice(start, start + pageSize);
-          return (
-            <div className={styles.attachmentCard} key={key}>
-              <div className={styles.attachmentMeta}>
-                <span>{item.title || item.file_name || 'table'}</span>
-                <div className={styles.attachmentMetaRight}>
-                  {item.row_count !== undefined && (
-                    <span className={styles.attachmentMetaSecondary}>
-                      共 {item.row_count} 条
-                    </span>
-                  )}
-                  {item.download_url && (
-                    <button
-                      className={styles.attachmentBtn}
-                      onClick={() => onDownload(item.download_url, item.file_name || 'table.json')}
-                    >
-                      Download
-                    </button>
-                  )}
-                </div>
+            {item.loading && (
+              <div className={styles.tableLoading}>
+                <Spin size="small" />
+                <span>正在加载表格数据...</span>
               </div>
-              {item.loading && (
-                <div className={styles.tableLoading}>
-                  <Spin size="small" />
-                  <span>正在加载表格数据...</span>
-                </div>
-              )}
-              {!item.loading && item.error && (
-                <div className={styles.tableError}>{item.error}</div>
-              )}
-              {!item.loading && !item.error && pageRows.length > 0 && (
-                <div className={styles.tableWrapper}>
-                  <table className={styles.dataTable}>
-                    <thead>
-                      <tr>
+            )}
+            {!item.loading && item.error && <div className={styles.tableError}>{item.error}</div>}
+            {!item.loading && !item.error && pageRows.length > 0 && (
+              <div className={styles.tableWrapper}>
+                <table className={styles.dataTable}>
+                  <thead>
+                    <tr>
+                      {columns.map((col) => (
+                        <th key={col}>{col}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageRows.map((row, rowIdx) => (
+                      <tr key={rowIdx}>
                         {columns.map((col) => (
-                          <th key={col}>{col}</th>
+                          <td key={col}>{row?.[col] ?? ''}</td>
                         ))}
                       </tr>
-                    </thead>
-                    <tbody>
-                      {pageRows.map((row, rowIdx) => (
-                        <tr key={rowIdx}>
-                          {columns.map((col) => (
-                            <td key={col}>{row?.[col] ?? ''}</td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              {!item.loading && !item.error && rows.length === 0 && (
-                <div className={styles.tableEmpty}>暂无数据</div>
-              )}
-              {!item.loading && !item.error && rows.length > 0 && (
-                <div className={styles.tablePagination}>
-                  <button
-                    className={styles.tablePageBtn}
-                    disabled={currentPage <= 1}
-                    onClick={() =>
-                      onTablePageChange?.(message.id, index, currentPage - 1)
-                    }
-                  >
-                    上一页
-                  </button>
-                  <span className={styles.tablePageInfo}>
-                    第 {currentPage} / {totalPages} 页
-                  </span>
-                  <button
-                    className={styles.tablePageBtn}
-                    disabled={currentPage >= totalPages}
-                    onClick={() =>
-                      onTablePageChange?.(message.id, index, currentPage + 1)
-                    }
-                  >
-                    下一页
-                  </button>
-                  <span className={styles.tablePageLabel}>跳转到</span>
-                  <input
-                    className={styles.tablePageInput}
-                    type="number"
-                    min="1"
-                    max={totalPages}
-                    value={pageInput}
-                    onChange={(event) =>
-                      onTablePageInputChange?.(message.id, index, event.target.value)
-                    }
-                  />
-                  <button
-                    className={styles.tablePageBtn}
-                    onClick={() => onTablePageJump?.(message.id, index)}
-                  >
-                    Go
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        }
-        return (
-          <div className={styles.attachmentCard} key={key}>
-            <div className={styles.attachmentMeta}>
-              <span>{item?.file_name || 'file'}</span>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {!item.loading && !item.error && rows.length === 0 && (
+              <div className={styles.tableEmpty}>暂无数据</div>
+            )}
+            {!item.loading && !item.error && rows.length > 0 && (
+              <div className={styles.tablePagination}>
+                <button
+                  className={styles.tablePageBtn}
+                  disabled={currentPage <= 1}
+                  onClick={() => onTablePageChange?.(message.id, index, currentPage - 1)}
+                >
+                  上一页
+                </button>
+                <span className={styles.tablePageInfo}>
+                  第 {currentPage} / {totalPages} 页
+                </span>
+                <button
+                  className={styles.tablePageBtn}
+                  disabled={currentPage >= totalPages}
+                  onClick={() => onTablePageChange?.(message.id, index, currentPage + 1)}
+                >
+                  下一页
+                </button>
+                <span className={styles.tablePageLabel}>跳转到</span>
+                <input
+                  className={styles.tablePageInput}
+                  type="number"
+                  min="1"
+                  max={totalPages}
+                  value={pageInput}
+                  onChange={(event) =>
+                    onTablePageInputChange?.(message.id, index, event.target.value)
+                  }
+                />
+                <button
+                  className={styles.tablePageBtn}
+                  onClick={() => onTablePageJump?.(message.id, index)}
+                >
+                  Go
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {files.length > 0 && (
+        <div className={styles.fileList}>
+          {files.map((item, index) => (
+            <div className={styles.fileRow} key={`${item?.file_name || 'file'}-${index}`}>
+              <span className={styles.fileName}>{item?.file_name || 'file'}</span>
               {item?.download_url && (
                 <button
                   className={styles.attachmentBtn}
@@ -1518,9 +1807,25 @@ const renderAttachments = (
                 </button>
               )}
             </div>
+          ))}
+        </div>
+      )}
+
+      {others.map((item, index) => (
+        <div className={styles.attachmentCard} key={`${item?.file_name || 'file'}-${index}`}>
+          <div className={styles.attachmentMeta}>
+            <span>{item?.file_name || 'file'}</span>
+            {item?.download_url && (
+              <button
+                className={styles.attachmentBtn}
+                onClick={() => onDownload(item.download_url, item.file_name)}
+              >
+                Download
+              </button>
+            )}
           </div>
-        );
-      })}
+        </div>
+      ))}
     </div>
   );
 };
@@ -1686,7 +1991,11 @@ const renderAttachments = (
             handleDownloadAttachment,
             handleTablePageChange,
             handleTablePageInputChange,
-            handleTablePageJump
+            handleTablePageJump,
+            handleFormFieldChange,
+            handleFormFileUpload,
+            handleFormSubmit,
+            openImagePreview
           )}
           {renderMessageMeta(message)}
         </div>
@@ -1769,6 +2078,26 @@ const renderAttachments = (
 
   return (
     <div className={styles.chatPage}>
+      {previewImage?.src && (
+        <div className={styles.imagePreviewOverlay} onClick={closeImagePreview}>
+          <div
+            className={styles.imagePreviewCard}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button className={styles.imagePreviewClose} onClick={closeImagePreview}>
+              <CloseCircleOutlined />
+            </button>
+            <img
+              src={previewImage.src}
+              alt={previewImage.name || 'preview'}
+              className={styles.imagePreviewImg}
+            />
+            {previewImage.name && (
+              <div className={styles.imagePreviewName}>{previewImage.name}</div>
+            )}
+          </div>
+        </div>
+      )}
       {isNewChat ? (
         newChatView
       ) : (
