@@ -99,6 +99,15 @@ export const authApi = {
   resetPassword: (payload) => request('/api/auth/password/reset', { method: 'POST', body: payload }),
 };
 
+export const userApi = {
+  profile: (token) => request('/api/user/profile', { token }),
+  updateProfile: (token, payload) =>
+    request('/api/user/profile', { method: 'PUT', token, body: payload }),
+  changePassword: (token, payload) =>
+    request('/api/user/password', { method: 'POST', token, body: payload }),
+  deleteAccount: (token) => request('/api/user/delete', { method: 'DELETE', token }),
+};
+
 export const sessionApi = {
   list: (token) => request('/api/sessions', { token }),
   create: (token, metadata = {}) =>
@@ -113,6 +122,12 @@ export const sessionApi = {
     request(`/api/session/${sessionId}`, { method: 'PUT', token, body: payload }),
   delete: (token, sessionId) =>
     request(`/api/session/${sessionId}`, { method: 'DELETE', token }),
+  updateMessageForm: (token, sessionId, messageId, payload) =>
+    request(`/api/session/${sessionId}/message/${messageId}/form`, {
+      method: 'PUT',
+      token,
+      body: payload,
+    }),
 };
 
 export const modelApi = {

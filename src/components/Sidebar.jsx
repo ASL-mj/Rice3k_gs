@@ -413,7 +413,9 @@ const Sidebar = ({
         ) : (
           <>
             <div className={styles.dialogueInfo}>
-              <span className={styles.dialogueTitle}>{dialogue.title}</span>
+              <span className={styles.dialogueTitle} title={dialogue.title}>
+                {dialogue.title}
+              </span>
               {dialogue.pinned && <span className={styles.dialoguePinnedTag}>PIN</span>}
             </div>
             <Popover

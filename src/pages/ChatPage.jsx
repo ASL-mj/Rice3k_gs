@@ -79,7 +79,10 @@ const normalizeHistoryMessage = (entry, index) => ({
   role: entry.role === 'assistant' ? 'assistant' : 'user',
   content: entry.content || '',
   timestamp: entry.timestamp,
-  metadata: entry.metadata || {},
+  metadata: {
+    ...(entry.metadata || {}),
+    ...(entry.id ? { server_id: entry.id } : {}),
+  },
 });
 
 const escapeHtml = (value = '') => {
@@ -410,6 +413,37 @@ const ChatPage = ({
     };
   }, []);
 
+  const resolveServerMessageId = useCallback((message) => {
+    if (!message) return null;
+    const metaId = message?.metadata?.server_id;
+    if (metaId) return metaId;
+    if (typeof message.id === 'number') return message.id;
+    const numeric = Number(message.id);
+    if (!Number.isNaN(numeric) && Number.isFinite(numeric)) {
+      return numeric;
+    }
+    return null;
+  }, []);
+
+  const persistFormValues = useCallback(
+    async (messageId, formId, values = {}, files = {}) => {
+      if (!accessToken || !dialogueId || !formId) return;
+      const messageEntry = findMessageById(messageId);
+      const serverId = resolveServerMessageId(messageEntry);
+      if (!serverId) return;
+      try {
+        await sessionApi.updateMessageForm(accessToken, dialogueId, serverId, {
+          form_id: formId,
+          values,
+          files,
+        });
+      } catch (error) {
+        console.warn('Failed to persist form values', error);
+      }
+    },
+    [accessToken, dialogueId, findMessageById, resolveServerMessageId]
+  );
+
   const appendAttachment = useCallback(
     (messageId, attachment) => {
       updateMessageById(messageId, (message) => {
@@ -548,6 +582,9 @@ const ChatPage = ({
         try {
           updateAttachmentByIndex(messageId, index, { submitting: true });
           const resp = await filesApi.upload(accessToken, file);
+          let nextValues = {};
+          let nextFiles = {};
+          let formId = '';
           updateAttachmentByIndex(messageId, index, (current) => {
             const values = { ...(current.values || {}) };
             const files = { ...(current.files || {}) };
@@ -557,8 +594,14 @@ const ChatPage = ({
               path: resp.path,
               size: resp.size_mb,
             };
+            nextValues = values;
+            nextFiles = files;
+            formId = current.form_id || '';
             return { ...current, values, files, submitting: false, error: null };
           });
+          if (formId) {
+            await persistFormValues(messageId, formId, nextValues, nextFiles);
+          }
         } catch (error) {
           updateAttachmentByIndex(messageId, index, {
             submitting: false,
@@ -568,7 +611,7 @@ const ChatPage = ({
       };
       input.click();
     },
-    [accessToken, isLoggedIn, onShowLoginModal, updateAttachmentByIndex]
+    [accessToken, isLoggedIn, onShowLoginModal, persistFormValues, updateAttachmentByIndex]
   );
 
   const isNewChat = !dialogueId;
@@ -749,6 +792,7 @@ const ChatPage = ({
       const finalAnswer = payload.final_answer || '';
       const reasoningText = (payload.reasoning || streamingReasoningRef.current || '').trim();
       const modelId = payload.model_id;
+      const serverId = payload.message_id;
       const attachments = Array.isArray(payload.attachments) ? payload.attachments : [];
       const normalizedAttachments = attachments.map((item) =>
         item?.type === 'form' ? normalizeFormAttachment(item) || item : item
@@ -760,6 +804,7 @@ const ChatPage = ({
           ...message.metadata,
           ...(reasoningText ? { reasoning: reasoningText } : {}),
           ...(modelId ? { model_id: modelId } : {}),
+          ...(serverId ? { server_id: serverId } : {}),
           ...(normalizedAttachments.length ? { attachments: normalizedAttachments } : {}),
         },
         timestamp: new Date().toISOString(),
@@ -996,10 +1041,13 @@ const ChatPage = ({
         ? `请使用工具 ${toolName}，参数如下：${JSON.stringify(payload)}`
         : JSON.stringify(payload);
       updateAttachmentByIndex(messageId, index, { submitting: true, error: null });
+      if (attachment.form_id) {
+        await persistFormValues(messageId, attachment.form_id, values, attachment.files || {});
+      }
       await dispatchUserPrompt(prompt, { resetInput: false });
       updateAttachmentByIndex(messageId, index, { submitting: false });
     },
-    [dispatchUserPrompt, findMessageById, updateAttachmentByIndex]
+    [dispatchUserPrompt, findMessageById, persistFormValues, updateAttachmentByIndex]
   );
 
   const handleAbortStream = useCallback(() => {

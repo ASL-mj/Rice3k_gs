@@ -317,7 +317,7 @@ function App() {
             <Route path="/tools/kegg-enrichment" element={<ProtectedRoute isLoggedIn={isLoggedIn}><div style={{padding: '20px'}}>KEGG Enrichment Tool (Coming Soon)</div></ProtectedRoute>} />
             <Route path="/tools/genome-browser" element={<ProtectedRoute isLoggedIn={isLoggedIn}><div style={{padding: '20px'}}>Genome Browser Tool (Coming Soon)</div></ProtectedRoute>} />
             <Route path="/code" element={<ProtectedRoute isLoggedIn={isLoggedIn}><div>Code Page (Coming Soon)</div></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute isLoggedIn={isLoggedIn}><AccountSettings /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute isLoggedIn={isLoggedIn}><AccountSettings accessToken={accessToken} isLoggedIn={isLoggedIn} onShowLoginModal={handleShowLoginModal} user={authState.user} onUserUpdated={(nextUser) => updateAuthState((prev) => ({ ...prev, user: nextUser }))} onLogout={handleLogout} /></ProtectedRoute>} />
             <Route path="/help" element={<ProtectedRoute isLoggedIn={isLoggedIn}><HelpFeedback /></ProtectedRoute>} />
             <Route path="*" element={<Navigate to="/chat" replace />} />
           </Routes>
